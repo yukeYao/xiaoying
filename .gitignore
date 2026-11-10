@@ -16,3 +16,6 @@ venv/
 .idea/
 .DS_Store
 Thumbs.db
+
+# 考核说明原文，不提交
+task.txt

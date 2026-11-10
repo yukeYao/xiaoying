@@ -43,19 +43,21 @@ def evaluate(items, modes):
     for m, kb in modes.items():
         out[m] = {}
         for it in items:
-            ranked = rank_doc_ids(kb.search_docs(it["query"], top_k=10)["results"])
+            hits = kb.search_docs(it["query"], top_k=10)["results"]
+            ranked = rank_doc_ids(hits)
             top5 = rank_doc_ids(kb.search_docs(it["query"], top_k=5)["results"])
             exp = it["expected_doc_ids"]
-            out[m][it["id"]] = {"ranked": ranked, "r1": recall_at_k(exp, ranked, 1),
-                                "r3": recall_at_k(exp, ranked, 3), "rr": reciprocal_rank(exp, ranked),
-                                "top5_docs": top5}
+            r = {"ranked": ranked, "top5_docs": top5, "top_score": hits[0]["score"] if hits else 0.0}
+            if exp:  # 资料外问题（期望为空）不计算指标
+                r.update(r1=recall_at_k(exp, ranked, 1), r3=recall_at_k(exp, ranked, 3), rr=reciprocal_rank(exp, ranked))
+            out[m][it["id"]] = r
     return out
 
 
 def summary_table(items, res, splits):
     lines = ["| 子集 | 题数 | 模式 | recall@1 | recall@3 | MRR |", "|---|---|---|---|---|---|"]
     for split in splits:
-        ids = [it["id"] for it in items if split == "all" or it["split"] == split]
+        ids = [it["id"] for it in items if it["expected_doc_ids"] and (split == "all" or it["split"] == split)]
         for m in res:
             avg = {k: sum(res[m][i][k] for i in ids) / len(ids) for k in ("r1", "r3", "rr")}
             lines.append(f"| {split} | {len(ids)} | {m} | {avg['r1']:.3f} | {avg['r3']:.3f} | {avg['rr']:.3f} |")
@@ -66,12 +68,22 @@ def detail_table(items, res):
     modes = list(res)
     lines = ["| ID | 问题 | 期望 | " + " | ".join(f"{m} top3 (R@1/R@3/RR)" for m in modes) + " |",
              "|---|---|---|" + "---|" * len(modes)]
-    for it in items:
+    for it in [it for it in items if it["expected_doc_ids"]]:
         cells = []
         for m in modes:
             r = res[m][it["id"]]
             cells.append(f"{','.join(r['ranked'][:3]) or '-'} ({r['r1']:.2f}/{r['r3']:.2f}/{r['rr']:.2f})")
         lines.append(f"| {it['id']} | {it['query']} | {','.join(it['expected_doc_ids'])} | " + " | ".join(cells) + " |")
+    return lines
+
+
+def out_of_scope_table(items, res):
+    """期望为空的资料外问题：只列出检索返回了什么，不计入指标。"""
+    lines = ["| ID | 问题 | 模式 | top3 返回的文档 | 最高分 |", "|---|---|---|---|---|"]
+    for it in [it for it in items if not it["expected_doc_ids"]]:
+        for m in res:
+            r = res[m][it["id"]]
+            lines.append(f"| {it['id']} | {it['query']} | {m} | {','.join(r['ranked'][:3]) or '-'} | {r['top_score']} |")
     return lines
 
 
@@ -116,8 +128,13 @@ def main():
         bres = evaluate(blind, modes)
         lines += ["", "## 2. 盲测集（data/retrieval_eval_blind.jsonl）", "",
                   "问题由项目作者本人编写，Claude Code 只负责标注期望 doc_id，未据此修改同义词表。单独报告。", ""]
+        n_oos = sum(not it["expected_doc_ids"] for it in blind)
+        lines += [f"共 {len(blind)} 条，其中 {n_oos} 条资料外问题（期望 doc_id 为空）不计入 recall/MRR，单独列出。", ""]
         lines += summary_table(blind, bres, ["all"])
         lines += ["", "### 逐题结果", ""] + detail_table(blind, bres)
+        lines += ["", "### 资料外问题（不计入指标）", "",
+                  "资料中没有能回答这些问题的文档。BM25 仍会返回分数大于 0 的段落，需要由 Agent 判断不相关并给出 out_of_scope。", ""]
+        lines += out_of_scope_table(blind, bres)
         lines += ["", "### 标注说明", ""] + [f"- {it['id']}：{it.get('note', '')}" for it in blind]
 
     text = "\n".join(lines) + "\n"
