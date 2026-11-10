@@ -99,30 +99,32 @@ cp .env.example .env
 
 批量评测的结果写入 `examples/eval_results_real_review.md`，trace 写入 `examples/real/review/`。建议每次用不同的 `--tag`，以免覆盖已有结果。
 
-输出示例：v4 中 C03 的一次真实运行，节选自 [examples/real/v4/C03_run1.md](examples/real/v4/C03_run1.md)，`……` 处有省略。
+输出示例：v4 中 C04（"发票最晚多久内要交上去？"，C03 的改写）的一次真实运行，完整输出，取自 [examples/real/v4/C04_run1.md](examples/real/v4/C04_run1.md)。路径 `S→R:D02→R:D01→F✗→F`：第一次 finish 以 answered 提交、同时在 relations 中写了 true_conflict，被校验拒绝后改为 conflict_need_confirmation。
 
 ```json
 {
   "status": "conflict_need_confirmation",
-  "answer": "报销期限如下：……由于不同文档对报销期限的规定存在冲突，请确认适用哪份制度：\n- 文档 D02（员工费用报销操作指引）规定为15天。\n- 文档 D01（财务报销管理办法）规定为30天。\n- 文档 D05（差旅费用报销补充规定）规定为10天。",
+  "answer": "发票的提交期限存在不同规定：根据《员工费用报销操作指引》，员工须在费用发生后15天内通过报销系统提交报销单并上传发票影像；而根据《财务报销管理办法》，员工应在费用发生之日起30天内提交报销申请，逾期提交的，财务部有权不予受理。请确认适用哪份制度。",
   "citations": [
     {"doc_id": "D02", "paragraph_id": "P2", "quote": "员工须在费用发生后15天内通过报销系统提交报销单，并上传发票影像。",
      "title": "员工费用报销操作指引", "version_date": "2024-06-15"},
     {"doc_id": "D01", "paragraph_id": "P2", "quote": "员工应在费用发生之日起30天内提交报销申请，逾期提交的，财务部有权不予受理。",
-     "title": "财务报销管理办法", "version_date": "2023-03-01"},
-    "……"
+     "title": "财务报销管理办法", "version_date": "2023-03-01"}
   ],
   "gaps": [],
   "conflict_check": {
-    "claims": [{"doc_id": "D02", "claim": "员工须在费用发生后15天内通过报销系统提交报销单。", "scope_quote": "未说明"}, "……"],
-    "relations": [{"docs": ["D02", "D01"], "type": "true_conflict", "basis": null}, "……"]
+    "claims": [
+      {"doc_id": "D02", "claim": "发票的提交期限为费用发生后15天内。", "scope_quote": "未说明"},
+      {"doc_id": "D01", "claim": "员工应在费用发生之日起30天内提交报销申请，逾期提交的，财务部有权不予受理。", "scope_quote": "未说明"}
+    ],
+    "relations": [{"docs": ["D02", "D01"], "type": "true_conflict", "basis": null}]
   },
-  "reason": "finish_called", "steps_used": 6, "mode": "real", "model": "gpt-4o-mini",
-  "trace_file": "examples/real/v4/C03_run1.md"
+  "reason": "finish_called", "steps_used": 5, "mode": "real", "model": "gpt-4o-mini",
+  "trace_file": "examples/real/v4/C04_run1.md"
 }
 ```
 
-这次运行把差旅规定 D05 也列成了冲突的一方。D05 写明它适用于差旅、并且优先于通用规定，所以更准确的写法是只把 D01 与 D02 列为冲突，见 03 的"判为通过但内容有问题"。
+注意：C03 的 3 次运行状态同样正确，但都把差旅规定 D05 也列成了冲突的一方（D05 写明只适用于差旅、并优先于通用规定），见 03 的"判为通过但内容有问题"。
 
 ## 替换文档测试
 
