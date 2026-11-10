@@ -11,9 +11,9 @@
 | 1 | 方案 | 2026-11-10 17:34 | 17:51 | 约 17 分钟 | 根据提交时间推算：开始时间由我提供；结束取阶段 1 审核补录时间 17:51 |
 | 2 | 数据集 + 检索工具 + 确定性测试 | 17:51 | 18:39 | 约 48 分钟 | 根据提交时间推算：开始取阶段 1 补录时间；结束取提交 ce4500f |
 | 3 | Agent 循环 + 模型接入 + Mock + 步数上限 + 故障注入 + 引用校验 | 18:39 | 19:39 | 约 60 分钟 | 根据提交时间推算：开始取 ce4500f；结束取提交 1e03d6a；含推送 GitHub 和 smoke 测试（7760cd2 19:22） |
-| 4 | CLI + Trace + 真实模型跑用例 | 19:39 | 进行中 | — | 根据提交时间推算：开始取 1e03d6a；已提交 6b1145f（19:51）、f09fed6（19:56）；20:00 起实时记录。第 2 步（v2）结束 20:08（实时记录，`date`；提交 0e92d41）。诊断 A（v2-strong）20:19–20:28（实时记录）。第 3 步（v3 / v3-strong）20:31–20:42（实时记录）。计划 C0 20:48–20:50（实时记录）。计划 C1（v4 / v4-strong）20:55–21:12（实时记录） |
+| 4 | CLI + Trace + 真实模型跑用例 | 19:39 | 21:12 | 约 93 分钟 | 根据提交时间推算：开始取 1e03d6a；已提交 6b1145f（19:51）、f09fed6（19:56）；20:00 起实时记录。第 2 步（v2）结束 20:08（实时记录，`date`；提交 0e92d41）。诊断 A（v2-strong）20:19–20:28（实时记录）。第 3 步（v3 / v3-strong）20:31–20:42（实时记录）。计划 C0 20:48–20:50（实时记录）。计划 C1（v4 / v4-strong）20:55–21:12（实时记录） |
 | — | `core-complete` tag |  |  |  |  |
-| 5 | 文档 01–03、README，04/05 模板 |  |  |  |  |
+| 5 | 文档 01–03、README，04/05 模板 | 21:17 | 21:26 | 约 9 分钟 | 实时记录（`date`）；含可复现性检查和 requirements.txt 修复 |
 | 延伸 |  |  |  |  |  |
 
 ---
@@ -484,3 +484,39 @@ finish 被拒次数合计：v4 13 次、v4-strong 8 次；incomplete：v4 3 次�
 - **把不同结论标成 consistent 的情况：没有出现**（v4、v4-strong 的 96 次运行中没有任何 relation 标为 consistent）。但出现了一次**同类限制**：gpt-4.1 的 V05 run1 把 D05–D01 标成 priority，basis 是 D05 P1"本规定适用于公司全部费用报销。"——这句是适用范围说明，不是优先级说明。basis 逐字存在且来自其中一份文档，校验通过，最终 answered 回答 10 天，finish 理由为"D05 为最新且适用范围覆盖全部费用报销，应优先适用"。程序同样无法判断 basis 的语义是否真的支持所标的关系类型。该运行中模型还先提交过 status="priority"（被枚举校验拒绝）。
 
 用时：本步 20:55 开始，21:12 运行与分析结束（实时记录）。
+
+---
+
+## 2026-11-10 阶段 5：收尾文档与可复现性检查
+
+**原方案**：我给出收尾清单：不再修改 Agent 逻辑、prompt 和数据。
+
+**最终决定及改动内容**（我决定）：
+1. 默认模型定为 gpt-4o-mini（v4 结果最好），在文档中说明选择理由，以及 gpt-4.1 在 v4 中因过度核实循环导致大量 incomplete 的已知限制。
+2. 新建 examples/README.md 索引：各轮结果文件与改动、每个验收点的代表性 trace（v4，gpt-4o-mini）、至少两条明显不同的执行路径。
+3. README.md：简介、环境、安装、.env、评审入口（Windows 与 macOS/Linux）、替换文档测试、结果摘要、用时说明、未完成与已知限制。
+4. docs/01、02、03（02 含 mermaid 流程图等；03 含检索评测、逐轮对比、引用 examples 文件、所有仍失败用例、已知限制、预留"人工审核结果"）。
+5. docs/04 根据决策日志和提交历史起草，不确定处标"待确认"，不写个人体会。
+6. docs/05 只生成模板，每节列出可参考的事实。
+7. 检查 .env.example、requirements.txt、.gitignore。
+8. 可复现性检查：clone 到临时目录，新建虚拟环境，按 README 安装，运行全部测试和 Mock 评测。
+
+**理由**：第 1 条：v4 结果最好（我给出的理由）。其他：未说明。
+
+**Claude Code 实现说明与发现**：
+- **更正一处此前的错误结论**：v3 记录中"C10 在 search 失败 2 次后以 failed 结束"与 trace 不符（gpt-4o-mini 实为连续 9 次失败后在第 10 步 failed），已在原记录处更正，03 中同步说明。
+- 整理代表性 trace 时核对发现：v4 中 C05 通过的 2 次只读了 D05（单文档回答），没有体现冲突核对，索引中如实标注，并补充 gpt-4.1 的 C06（superseded，basis 为 D07 P1）作为"已被替代"的示例。
+- README 的输出示例使用 v4 C03_run1 的真实输出（节选），并注明该次把 D05 也列为冲突方。
+- `.env.example` 的 AGENT_MODEL 由占位符改为 gpt-4o-mini。
+- **可复现性检查发现并修复一个问题**：第一次在新 clone 中运行 `pip install -r requirements.txt` 失败（`UnicodeDecodeError: 'gbk' codec can't decode`）——固定依赖版本时 requirements.txt 加了中文注释，Windows 下 pip 按系统代码页（GBK）读取该文件。开发用的 .venv 是在加注释前安装的，所以此前没有暴露。已把注释改为纯 ASCII（提交 0b06cc1）。
+- 未改动 src/ 下的 Agent 逻辑、prompt 和 data/。
+
+**验证方式与结果**（修复后，在 scratchpad 临时目录中从 GitHub 重新 clone 提交 0b06cc1）：
+- `python -m venv .venv` + `pip install -r requirements.txt`：成功，安装 22 个包（与 requirements.txt 一致）。
+- `pytest -q`：139 passed。
+- `scripts/run_eval.py --mock`：16/16。
+- `src.cli --case C03 --mock`：status=conflict_need_confirmation，mode=mock。
+- `scripts/eval_retrieval.py`：结果与仓库中一致（all：0.861 / 1.000 / 0.972）。
+- 未在 clone 中验证真实模型路径（需要 .env 和 key）；未在 macOS / Linux 上验证，README 中 macOS / Linux 的命令未经实测。
+
+用时：本步 21:17 开始，21:26 结束（实时记录）。
