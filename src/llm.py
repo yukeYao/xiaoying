@@ -26,7 +26,7 @@ class OpenAIChat:
 
     def __init__(self, model: str | None = None, api_key: str | None = None, base_url: str | None = None,
                  temperature: float = 0.0, timeout: float = 60, retries: int = 1, retry_wait: float = 2.0):
-        load_dotenv(ROOT / ".env")
+        load_dotenv(ROOT / ".env")  # 不覆盖已存在的环境变量：AGENT_MODEL=xxx 可临时换模型
         self.model = model or os.getenv("AGENT_MODEL")
         api_key = api_key or os.getenv("AGENT_API_KEY")
         base_url = base_url or os.getenv("AGENT_BASE_URL")

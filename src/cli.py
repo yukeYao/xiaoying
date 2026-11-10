@@ -102,6 +102,7 @@ def main(argv=None) -> int:
     ap.add_argument("--fail-times", type=int, help="故障注入次数；不填表示每次都失败")
     ap.add_argument("--interactive", action="store_true", help="ask_user 时真的在终端询问（--chat 下默认开启）")
     ap.add_argument("--trace-dir", help="保存 trace（JSONL + Markdown）的目录")
+    ap.add_argument("--model", help="真实模型名，覆盖 .env 中的 AGENT_MODEL（不修改 .env）")
     args = ap.parse_args(argv)
 
     if args.chat and (args.mock is not None or args.case or args.question):
@@ -119,7 +120,7 @@ def main(argv=None) -> int:
         llm = ScriptedLLM(MOCK_SCRIPTS[script])
     else:
         from .llm import OpenAIChat
-        llm = OpenAIChat()
+        llm = OpenAIChat(model=args.model)
 
     fail_tool = args.fail_tool or case.get("fail_tool")
     fail_times = args.fail_times if args.fail_times is not None else case.get("fail_times")

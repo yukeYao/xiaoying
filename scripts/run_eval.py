@@ -4,6 +4,7 @@
     python scripts/run_eval.py --mock                  # 脚本化 Mock，只验证流程
     python scripts/run_eval.py --real --repeat 3       # 真实模型，每个用例跑 3 次
     python scripts/run_eval.py --real --repeat 3 --tag v2   # 每一轮用 tag 区分，不覆盖之前的结果
+    python scripts/run_eval.py --real --model gpt-4.1 --tag v2-strong  # 临时换模型（不改 .env）
     python scripts/run_eval.py --real --cases C03 C05  # 只跑部分用例（无 tag 时结果写入 *_subset.md）
 
 trace：真实模型 → examples/real/[tag/]，Mock → examples/mock/[tag/]，文件名 {用例ID}_run{第几次}.jsonl/.md
@@ -117,6 +118,7 @@ def main():
     g.add_argument("--real", action="store_true", help="真实模型（读取 .env）")
     ap.add_argument("--repeat", type=int, default=1, help="每个用例运行次数")
     ap.add_argument("--cases", nargs="+", help="只运行这些用例 ID")
+    ap.add_argument("--model", help="真实模型名，覆盖 .env 中的 AGENT_MODEL（不修改 .env）；也可用环境变量 AGENT_MODEL")
     ap.add_argument("--tag", default="", help="本轮结果的标签（如 v2）：trace 存到 examples/{mode}/{tag}/，结果写入 eval_results_{mode}_{tag}.md")
     args = ap.parse_args()
 
@@ -142,7 +144,7 @@ def main():
         make_llm, model = (lambda cid: ScriptedLLM(MOCK_SCRIPTS[cid])), "mock"
     else:
         from src.llm import OpenAIChat
-        real = OpenAIChat()
+        real = OpenAIChat(model=args.model)
         make_llm, model = (lambda cid: real), real.name
 
     t0, results = time.perf_counter(), {}

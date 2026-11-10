@@ -11,7 +11,7 @@
 | 1 | 方案 | 2026-11-10 17:34 | 17:51 | 约 17 分钟 | 根据提交时间推算：开始时间由我提供；结束取阶段 1 审核补录时间 17:51 |
 | 2 | 数据集 + 检索工具 + 确定性测试 | 17:51 | 18:39 | 约 48 分钟 | 根据提交时间推算：开始取阶段 1 补录时间；结束取提交 ce4500f |
 | 3 | Agent 循环 + 模型接入 + Mock + 步数上限 + 故障注入 + 引用校验 | 18:39 | 19:39 | 约 60 分钟 | 根据提交时间推算：开始取 ce4500f；结束取提交 1e03d6a；含推送 GitHub 和 smoke 测试（7760cd2 19:22） |
-| 4 | CLI + Trace + 真实模型跑用例 | 19:39 | 进行中 | — | 根据提交时间推算：开始取 1e03d6a；已提交 6b1145f（19:51）、f09fed6（19:56）；20:00 起实时记录。第 2 步（v2）结束 20:08（实时记录，`date`；提交 0e92d41） |
+| 4 | CLI + Trace + 真实模型跑用例 | 19:39 | 进行中 | — | 根据提交时间推算：开始取 1e03d6a；已提交 6b1145f（19:51）、f09fed6（19:56）；20:00 起实时记录。第 2 步（v2）结束 20:08（实时记录，`date`；提交 0e92d41）。诊断 A（v2-strong）20:19–20:28（实时记录） |
 | — | `core-complete` tag |  |  |  |  |
 | 5 | 文档 01–03、README，04/05 模板 |  |  |  |  |
 | 延伸 |  |  |  |  |  |
@@ -283,3 +283,125 @@
 - C13 run2：answer 内容正确（未提到折现、逾期作废），但状态标 need_clarification 而不是 out_of_scope。
 - C14：run1 仍为 need_clarification；run2 虽通过，但 answer 中仍有文档以外的建议（"检查设备存储空间、联系技术支持"）且无引用。
 - C10：不变，仍反复重试检索直到步数上限（第 3 步的 prompt 修改针对此问题）。
+
+---
+
+## 2026-11-10 阶段 4 诊断 A：换更强模型（v2-strong）
+
+**原方案**：Claude Code 在 v2 汇报中提出 gpt-4o-mini 可能是能力上限，建议换更强模型对照。
+
+**最终决定及改动内容**（我决定）：先不进第 3 步。代码不变，用比 gpt-4o-mini 更强的模型跑全部用例（先确认账户可用模型，选一个并告知），--repeat 3，tag 为 v2-strong；模型名通过参数或环境变量切换，不改 .env 默认值。之后第 3 步在原计划基础上增加"冲突处理明确步骤"（范围分工 / 已被替代 / 真冲突，只有真冲突才用 conflict_need_confirmation，绝不把互相矛盾的规定并列作为答案），用 gpt-4o-mini 跑 v3；若 v3 中 C03–C06 仍失败，再讨论 finish 增加结构化 conflict_check 字段。CLAUDE.md 中我加的用时规则一并提交（提交 f31c92f）。
+
+**理由**：未说明。
+
+**Claude Code 实现说明**：
+- 账户可用模型（models.list）包括 gpt-4.1、gpt-4o、gpt-5 / 5.x 系列、o3 等。选择 **gpt-4.1**：支持 temperature=0 与 tool calling，可保持与 gpt-4o-mini 相同的调用参数，只改变模型本身；gpt-5.x / o 系列推理模型多数不接受非默认 temperature，会同时改变采样设置。smoke 测试通过（返回 gpt-4.1-2025-04-14）。
+-  和  增加  参数； 优先于 .env；也可用环境变量 （load_dotenv 不覆盖已存在的环境变量）。.env 未修改。
+
+**验证方式与结果**：============================= test session starts =============================
+platform win32 -- Python 3.12.7, pytest-7.4.4, pluggy-1.0.0
+rootdir: D:\0Programs\0internship\xiaoying
+configfile: pytest.ini
+testpaths: tests
+plugins: anyio-4.2.0
+collected 0 items / 5 errors
+
+=================================== ERRORS ====================================
+____________________ ERROR collecting tests/test_agent.py _____________________
+ImportError while importing test module 'D:\0Programs\0internship\xiaoying\tests\test_agent.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+D:\0ProgramFiles\Anaconda3\Lib\importlib\__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+tests\test_agent.py:10: in <module>
+    from src.agent import NO_TOOL_REMINDER, run_agent
+src\agent.py:13: in <module>
+    from .tools import TOOL_SCHEMAS, ToolRunner, error
+src\tools.py:13: in <module>
+    from .retrieval import DEFAULT_SYNONYMS, BM25Index, expand_query, load_synonyms, make_tokenizer, tokenize
+src\retrieval.py:8: in <module>
+    import jieba
+E   ModuleNotFoundError: No module named 'jieba'
+____________________ ERROR collecting tests/test_finish.py ____________________
+ImportError while importing test module 'D:\0Programs\0internship\xiaoying\tests\test_finish.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+D:\0ProgramFiles\Anaconda3\Lib\importlib\__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+tests\test_finish.py:5: in <module>
+    from src.tools import KnowledgeBase, ToolRunner
+src\tools.py:13: in <module>
+    from .retrieval import DEFAULT_SYNONYMS, BM25Index, expand_query, load_synonyms, make_tokenizer, tokenize
+src\retrieval.py:8: in <module>
+    import jieba
+E   ModuleNotFoundError: No module named 'jieba'
+_____________________ ERROR collecting tests/test_llm.py ______________________
+ImportError while importing test module 'D:\0Programs\0internship\xiaoying\tests\test_llm.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+D:\0ProgramFiles\Anaconda3\Lib\importlib\__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+tests\test_llm.py:4: in <module>
+    import openai
+E   ModuleNotFoundError: No module named 'openai'
+__________________ ERROR collecting tests/test_retrieval.py ___________________
+ImportError while importing test module 'D:\0Programs\0internship\xiaoying\tests\test_retrieval.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+D:\0ProgramFiles\Anaconda3\Lib\importlib\__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+tests\test_retrieval.py:7: in <module>
+    from src.retrieval import (expand_query, load_synonyms, make_tokenizer, rank_doc_ids, recall_at_k,
+src\retrieval.py:8: in <module>
+    import jieba
+E   ModuleNotFoundError: No module named 'jieba'
+___________________ ERROR collecting tests/test_run_eval.py ___________________
+ImportError while importing test module 'D:\0Programs\0internship\xiaoying\tests\test_run_eval.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+D:\0ProgramFiles\Anaconda3\Lib\importlib\__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+tests\test_run_eval.py:7: in <module>
+    import run_eval  # noqa: E402
+scripts\run_eval.py:29: in <module>
+    from src.cli import load_cases, run_once  # noqa: E402
+src\cli.py:17: in <module>
+    from .agent import DEFAULT_MAX_STEPS, run_agent
+src\agent.py:13: in <module>
+    from .tools import TOOL_SCHEMAS, ToolRunner, error
+src\tools.py:13: in <module>
+    from .retrieval import DEFAULT_SYNONYMS, BM25Index, expand_query, load_synonyms, make_tokenizer, tokenize
+src\retrieval.py:8: in <module>
+    import jieba
+E   ModuleNotFoundError: No module named 'jieba'
+=========================== short test summary info ===========================
+ERROR tests/test_agent.py
+ERROR tests/test_finish.py
+ERROR tests/test_llm.py
+ERROR tests/test_retrieval.py
+ERROR tests/test_run_eval.py
+!!!!!!!!!!!!!!!!!!! Interrupted: 5 errors during collection !!!!!!!!!!!!!!!!!!!
+============================== 5 errors in 0.29s ============================== 117 个通过。（）：总通过率 **25/48**（v2 gpt-4o-mini 为 33/48）。
+
+| 用例 | v2（4o-mini） | v2-strong（4.1） |
+|---|---|---|
+| C05 | 0/3 | 2/3 |
+| C06 | 0/3 | 2/3 |
+| C03 | 1/3 | 1/3 |
+| C04 | 0/3 | 0/3 |
+| C01 | 3/3 | 2/3 |
+| C02 | 3/3 | 0/3 |
+| C07 | 3/3 | 1/3 |
+| C11 | 3/3 | 1/3 |
+| C13 | 2/3 | 0/3 |
+| C14 | 2/3 | 0/3 |
+| C10 | 1/3 | 1/3 |
+| C08、C09、C12、V03、V05 | 3/3 | 3/3 |
+
+**Claude Code 从 trace 看到的情况（尚待我判断）**：
+- C05、C06：gpt-4.1 完成的运行都读全文后正确引用了 D05 P3（优先于通用规定）、D07 P1（2022 版废止），给出 answered。gpt-4o-mini 看到全文仍忽略这些条款。→ C05、C06 的失败**主要来自模型能力**。（gpt-4.1 各有 1 次因循环撞到步数上限。）
+- C03、C04：**不是模型能力问题**。gpt-4.1 读了 D01、D02、D05 全文后，5/6 次标 answered，只回答 D02 的 15 天 + 差旅 10 天，**完全没提 D01 的 30 天**（C04 run1 答案写"根据公司最新的《员工费用报销操作指引》"）——这正是题目参考实例中明确禁止的"擅自回答 15 天"，属关键缺陷。推测模型按"版本较新优先"选择，尽管 prompt 第 4 条禁止。
+- 新问题——循环：gpt-4.1 有 19 次 incomplete，11 次运行中同一调用重复 ≥3 次（v2 只有 1 次）。例如 C01 run1 连续 9 次 read_doc D03，reason 为"再次确认全文，确保没有遗漏"；C13、C14、C07 不断换关键词检索直到步数上限；C02 去检索"年假制度适用范围"，最后以"制度未写明适用范围，请问您是正式员工吗"返回 need_clarification。推测是 prompt 中"查找适用范围、优先级"的要求被更强（更谨慎）的模型泛化到了所有问题，且模型不知道剩余步数。第 3 步的"剩余步数"和"不要重复相同调用"可能针对此问题。
+- 结论（Claude Code 的判断）：换更强模型能解决"看到但不核对"（C05/C06），但解决不了"冲突时偏向较新版本"（C03/C04），还引入了过度核实导致的循环。C03/C04 需要第 3 步的冲突处理步骤或结构化 conflict_check。
+
+用时：本步 20:19 开始，20:28 结束（实时记录）。
