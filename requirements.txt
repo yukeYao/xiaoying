@@ -1,11 +1,12 @@
-# 固定为开发环境中实际安装的版本（Python 3.12.7，pip freeze）
-# 直接依赖
+# Pinned to the versions installed in the development environment (Python 3.12.7, pip freeze).
+# Keep this file ASCII-only: pip on Windows may decode it with the system code page (e.g. GBK).
+# Direct dependencies
 openai==3.49.0
 jieba==0.42.1
 python-dotenv==1.2.4
 pytest==9.2.0
 
-# 间接依赖
+# Transitive dependencies
 annotated-types==0.8.0
 anyio==4.16.0
 colorama==0.4.6
