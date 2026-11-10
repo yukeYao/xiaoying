@@ -1,0 +1,18 @@
+{"id": "R01", "split": "dev", "query": "工作满5年有几天年假", "expected_doc_ids": ["D03"]}
+{"id": "R02", "split": "dev", "query": "我入职五年了，带薪休假一年能休多少天", "expected_doc_ids": ["D03"]}
+{"id": "R03", "split": "dev", "query": "报销期限多久", "expected_doc_ids": ["D01", "D02"]}
+{"id": "R04", "split": "dev", "query": "发票最晚多久内要交上去", "expected_doc_ids": ["D01", "D02"]}
+{"id": "R05", "split": "dev", "query": "出差回来多久内必须报销", "expected_doc_ids": ["D05"]}
+{"id": "R06", "split": "dev", "query": "笔记本电脑几年能换", "expected_doc_ids": ["D06", "D07"]}
+{"id": "R07", "split": "dev", "query": "请假超过3天谁审批", "expected_doc_ids": ["D04"]}
+{"id": "R08", "split": "dev", "query": "加班后调休有效期多长", "expected_doc_ids": ["D08"]}
+{"id": "R09", "split": "dev", "query": "免费版导出有水印吗", "expected_doc_ids": ["D09"]}
+{"id": "R10", "split": "dev", "query": "买了会员不想要了能退钱吗", "expected_doc_ids": ["D10"]}
+{"id": "R11", "split": "dev", "query": "生病请假要交什么材料", "expected_doc_ids": ["D04"]}
+{"id": "R12", "split": "dev", "query": "酒店住宿标准是多少", "expected_doc_ids": ["D05"]}
+{"id": "R13", "split": "dev", "query": "年假没休完能折现吗", "expected_doc_ids": ["D03"]}
+{"id": "H01", "split": "holdout", "query": "出差的票据最晚什么时候交", "expected_doc_ids": ["D05"]}
+{"id": "H02", "split": "holdout", "query": "周末加班换来的假能留到什么时候", "expected_doc_ids": ["D08"]}
+{"id": "H03", "split": "holdout", "query": "新员工入职能领几台显示器", "expected_doc_ids": ["D06", "D07"]}
+{"id": "H04", "split": "holdout", "query": "视频导不出来怎么办", "expected_doc_ids": ["D09"]}
+{"id": "H05", "split": "holdout", "query": "休年假要提前几天申请", "expected_doc_ids": ["D03"]}

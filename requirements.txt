@@ -1,0 +1,4 @@
+openai>=1.0
+jieba>=0.42
+python-dotenv>=0.21
+pytest>=7.0
