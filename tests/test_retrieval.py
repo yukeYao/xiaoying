@@ -9,7 +9,8 @@ from src.retrieval import (expand_query, load_synonyms, make_tokenizer, rank_doc
 from src.tools import KnowledgeBase
 
 MAIN = ROOT / "data" / "docs"
-VARIANT = ROOT / "data" / "variant" / "docs"
+VARIANT_A = ROOT / "data" / "variant_a" / "docs"
+VARIANT_B = ROOT / "data" / "variant_b" / "docs"
 
 
 @pytest.fixture(scope="module")
@@ -41,15 +42,26 @@ def test_main_dataset_loads_all_docs_with_metadata():
         assert d.title and d.version_date and d.paragraphs
 
 
-def test_variant_dataset_differs_as_documented():
-    main, variant = load_docs(MAIN), load_docs(VARIANT)
-    assert "D02" in main and "D02" not in variant
-    assert "30天内" in main["D01"].paragraphs["P2"] and "20天内" in variant["D01"].paragraphs["P2"]
+def test_variant_a_differs_as_documented():
+    # variant_a：删除 D02，D01 改为 20 天，其余（含 D05）与主数据集相同
+    main, va = load_docs(MAIN), load_docs(VARIANT_A)
+    assert "D02" in main and "D02" not in va
+    assert "30天内" in main["D01"].paragraphs["P2"] and "20天内" in va["D01"].paragraphs["P2"]
+    for doc_id in va:
+        if doc_id != "D01":
+            assert va[doc_id] == main[doc_id], doc_id
+
+
+def test_variant_b_differs_as_documented():
+    # variant_b：在 variant_a 基础上，D05 删除优先级条款、适用范围改为公司全部费用报销
+    main, va, vb = load_docs(MAIN), load_docs(VARIANT_A), load_docs(VARIANT_B)
     assert any("优先于" in p for p in main["D05"].paragraphs.values())
-    assert not any("优先于" in p for p in variant["D05"].paragraphs.values())
-    # 替换版 D05 与 D01 同范围：适用于公司全部费用报销
-    assert main["D05"].scope == "差旅费用报销" and variant["D05"].scope == "公司全部费用报销"
-    assert variant["D05"].paragraphs["P1"] == "本规定适用于公司全部费用报销。"
+    assert not any("优先于" in p for p in vb["D05"].paragraphs.values())
+    assert main["D05"].scope == "差旅费用报销" and vb["D05"].scope == "公司全部费用报销"
+    assert vb["D05"].paragraphs["P1"] == "本规定适用于公司全部费用报销。"
+    for doc_id in vb:
+        if doc_id != "D05":
+            assert vb[doc_id] == va[doc_id], doc_id
 
 
 def test_load_docs_empty_dir_raises(tmp_path):
@@ -136,8 +148,8 @@ def test_search_empty_query_returns_error(kb):
 
 
 def test_search_results_follow_data_dir():
-    # 替换文档后检索结果随之改变：variant 中没有 D02
-    kb_v = KnowledgeBase(VARIANT)
+    # 替换文档后检索结果随之改变：variant_a 中没有 D02
+    kb_v = KnowledgeBase(VARIANT_A)
     assert "D02" not in top_docs(kb_v, "报销期限多久", k=10)
 
 

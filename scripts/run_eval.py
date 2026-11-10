@@ -3,10 +3,11 @@
 用法：
     python scripts/run_eval.py --mock                  # 脚本化 Mock，只验证流程
     python scripts/run_eval.py --real --repeat 3       # 真实模型，每个用例跑 3 次
-    python scripts/run_eval.py --real --cases C03 C05  # 只跑部分用例（结果写入 *_subset.md）
+    python scripts/run_eval.py --real --repeat 3 --tag v2   # 每一轮用 tag 区分，不覆盖之前的结果
+    python scripts/run_eval.py --real --cases C03 C05  # 只跑部分用例（无 tag 时结果写入 *_subset.md）
 
-trace：真实模型 → examples/real/，Mock → examples/mock/，文件名 {用例ID}_run{第几次}.jsonl/.md
-结果：examples/eval_results_real.md / examples/eval_results_mock.md
+trace：真实模型 → examples/real/[tag/]，Mock → examples/mock/[tag/]，文件名 {用例ID}_run{第几次}.jsonl/.md
+结果：examples/eval_results_{real|mock}[_tag].md
 
 每次运行的检查项：
 - 实际状态在 expected_status 中
@@ -73,17 +74,18 @@ def run_case(case: dict, k: int, llm, trace_dir: Path) -> dict:
             "path": path_of(tracer.steps), "trace": out["trace_file"]}
 
 
-def report(mode: str, model: str, cases: list[dict], results: dict, repeat: int, elapsed: float) -> str:
+def report(mode: str, model: str, cases: list[dict], results: dict, repeat: int, elapsed: float, tag: str = "") -> str:
+    sub = f"{mode}/{tag}/" if tag else f"{mode}/"
     total = sum(len(r) for r in results.values())
     passed = sum(x["passed"] for r in results.values() for x in r)
     full = [cid for cid, r in results.items() if all(x["passed"] for x in r)]
     failed = [cid for cid, r in results.items() if not all(x["passed"] for x in r)]
-    lines = [f"# 端到端评测结果（{'Mock' if mode == 'mock' else '真实模型'}）", ""]
+    lines = [f"# 端到端评测结果（{'Mock' if mode == 'mock' else '真实模型'}{'，' + tag if tag else ''}）", ""]
     if mode == "mock":
         lines += ["> **Mock 运行**：脚本化 Mock 模型按固定脚本行动，只验证流程（循环、工具、校验、步数上限、故障注入），"
                   "不证明真实模型的决策效果。", ""]
     lines += [f"- 模型：`{model}`", f"- 运行时间：{datetime.now():%Y-%m-%d %H:%M}，耗时 {elapsed:.0f}s",
-              f"- 每个用例运行次数：{repeat}", f"- trace 目录：`examples/{mode}/`（文件名 `用例ID_run次数`）",
+              f"- 每个用例运行次数：{repeat}", f"- trace 目录：`examples/{sub}`（文件名 `用例ID_run次数`）",
               "- 路径记号：S=search_docs，R:Dxx=read_doc，A=ask_user，F=finish，T=无工具调用的纯文本回复，✗=该步返回错误", "",
               "## 汇总", "",
               f"- 总通过率：{passed}/{total}（{passed / total:.0%}）",
@@ -103,7 +105,7 @@ def report(mode: str, model: str, cases: list[dict], results: dict, repeat: int,
     if fails:
         lines += ["", "## 未通过的运行", "", "| 用例 | 第几次 | 问题 | trace |", "|---|---|---|---|"]
         # 报告位于 examples/，trace 位于 examples/{mode}/，链接用相对路径
-        lines += [f"| {cid} | {x['run']} | {'；'.join(x['problems'])} | [{Path(x['trace']).name}]({mode}/{Path(x['trace']).name}) |"
+        lines += [f"| {cid} | {x['run']} | {'；'.join(x['problems'])} | [{Path(x['trace']).name}]({sub}{Path(x['trace']).name}) |"
                   for cid, x in fails]
     return "\n".join(lines) + "\n"
 
@@ -115,6 +117,7 @@ def main():
     g.add_argument("--real", action="store_true", help="真实模型（读取 .env）")
     ap.add_argument("--repeat", type=int, default=1, help="每个用例运行次数")
     ap.add_argument("--cases", nargs="+", help="只运行这些用例 ID")
+    ap.add_argument("--tag", default="", help="本轮结果的标签（如 v2）：trace 存到 examples/{mode}/{tag}/，结果写入 eval_results_{mode}_{tag}.md")
     args = ap.parse_args()
 
     all_cases = load_cases()
@@ -124,8 +127,11 @@ def main():
         ap.error(f"未知用例：{unknown}")
     cases = [all_cases[i] for i in ids]
     mode = "mock" if args.mock else "real"
-    trace_dir = ROOT / "examples" / mode
-    out_file = ROOT / "examples" / (f"eval_results_{mode}.md" if not args.cases else f"eval_results_{mode}_subset.md")
+    trace_dir = ROOT / "examples" / mode / args.tag if args.tag else ROOT / "examples" / mode
+    if args.tag:
+        out_file = ROOT / "examples" / f"eval_results_{mode}_{args.tag}.md"
+    else:
+        out_file = ROOT / "examples" / (f"eval_results_{mode}.md" if not args.cases else f"eval_results_{mode}_subset.md")
 
     if not args.cases and trace_dir.exists():  # 全量运行前清掉旧 trace，避免残留
         for f in list(trace_dir.glob("*.jsonl")) + list(trace_dir.glob("*.md")):
@@ -147,7 +153,7 @@ def main():
             results[case["id"]].append(r)
             print(f"{case['id']} run{k}: {r['status']:<28} {'PASS' if r['passed'] else 'FAIL'}  {r['path']}", flush=True)
 
-    text = report(mode, model, cases, results, args.repeat, time.perf_counter() - t0)
+    text = report(mode, model, cases, results, args.repeat, time.perf_counter() - t0, args.tag)
     out_file.write_text(text, encoding="utf-8", newline="\n")
     print(f"\n结果已写入 {out_file.relative_to(ROOT).as_posix()}")
 

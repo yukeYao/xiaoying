@@ -12,5 +12,5 @@
 {"id": "C12", "acceptance": ["步数上限"], "question": "报销期限多久？", "max_steps": 2, "expected_status": ["incomplete"], "notes": "max_steps=2，冲突用例无法在 2 步内完成"}
 {"id": "C13", "acceptance": ["资料外问题"], "question": "年假没休完能折现吗？", "expected_status": ["out_of_scope", "answered"], "expect_gaps": true, "notes": "D03 会被检索到但没有折现规则；out_of_scope，或部分回答并在 gaps 中说明缺口，不得编造规则"}
 {"id": "C14", "acceptance": ["资料外问题"], "question": "客户在系统里导不出报表数据，提示超时报错，这个该怎么处理或者联系谁解决？", "expected_status": ["out_of_scope"], "expect_gaps": true, "notes": "盲测 B05；检索会返回无关段落（D03/D02/D04），D09 是视频导出不适用"}
-{"id": "V03", "acceptance": ["替换文档"], "question": "报销期限多久？", "data_dir": "data/variant/docs", "expected_status": ["answered"], "expected_citation_docs": ["D01"], "notes": "替换版：D02 删除、D01 改为 20 天，对比 C03"}
-{"id": "V05", "acceptance": ["替换文档", "文档冲突"], "question": "出差回来多久内必须报销？", "data_dir": "data/variant/docs", "expected_status": ["conflict_need_confirmation"], "expected_citation_docs": ["D01", "D05"], "notes": "替换版：D05 删除优先级条款，适用范围改为公司全部费用报销，与 D01（20 天）同范围直接冲突。对比 C05"}
+{"id": "V03", "acceptance": ["替换文档"], "question": "报销期限多久？", "data_dir": "data/variant_a/docs", "expected_status": ["answered"], "expected_citation_docs": ["D01"], "notes": "替换版 A（variant_a）：D02 删除、D01 改为 20 天，D05 与主数据集相同。对比 C03"}
+{"id": "V05", "acceptance": ["替换文档", "文档冲突"], "question": "出差回来多久内必须报销？", "data_dir": "data/variant_b/docs", "expected_status": ["conflict_need_confirmation"], "expected_citation_docs": ["D01", "D05"], "notes": "替换版 B（variant_b）：在 variant_a 基础上 D05 删除优先级条款，适用范围改为公司全部费用报销，与 D01（20 天）同范围直接冲突。对比 C05"}

@@ -3,7 +3,7 @@
 **MOCK 运行**：脚本化 Mock 模型，只验证流程，不代表真实模型的决策效果。
 
 - question：出差回来多久内必须报销？
-- data_dir：data/variant/docs
+- data_dir：data/variant_b/docs
 - max_steps：10
 
 ## 步骤

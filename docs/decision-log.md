@@ -220,3 +220,33 @@
 - C10：search_docs 一直失败时，模型反复换关键词重试，没有改用 read_doc 或及时 finish，2/3 次撞到 max_steps 返回 incomplete（步数上限按设计生效）。错误信息没有列出可用文档 ID，模型也无从直接 read_doc。
 - C14：2/3 次把资料外问题当成"指代不清"，返回 need_clarification（问"哪个系统"）。第 3 次虽判为 out_of_scope（计为通过），但 answer 把 D09（视频导出、存储空间）的建议套用到报表导出超时上，引用逐字正确但不支持回答——这是逐字校验无法发现的问题，评测脚本也没有检查出来。
 - C03、C04 各 1 次：读到 D05 后把问题理解为"一般报销还是差旅报销"，返回 need_clarification；通过的运行中也常把 D05 作为第三种说法列出，同样没有读全文核实 D05 的适用范围。
+
+---
+
+## 2026-11-10 阶段 4 改进第 0、1 步：基线归档与替换版数据拆分
+
+**原方案**：Claude Code 在阶段 4 汇报中指出 V03 失败可能是期望与数据不一致，并提出几类改法，请我决定先处理哪一类。
+
+**最终决定及改动内容**（我决定）：
+0. 当前真实模型结果重命名为基线：`examples/eval_results_real_v1.md`，trace 目录改为 `examples/real/v1/`。`run_eval.py` 增加 `--tag` 参数区分每一轮结果，之后每轮结果不覆盖之前的文件。
+1. V03 / V05 拆成两份替换版数据：
+   - `data/variant_a`：删除 D02，D01 改为 20 天，D05 保持主数据集原样。V03 使用它，期望 answered 20 天、引用 D01。
+   - `data/variant_b`：在 variant_a 基础上，D05 改为适用于全部费用报销、删除优先级条款。V05 使用它，期望 conflict_need_confirmation。
+   - 更新两份 README 说明各自用途。只重跑 V03、V05（--repeat 3）。
+   - **记录**：原替换版设计让 V03 也产生了冲突，这是上一轮（阶段 3 第二步审核）修改 D05 时没有考虑到的。
+2. （后续步骤）read_doc 默认返回全文（v2）；prompt 修改与剩余步数（v3）。每一步完成后停下汇报。finish 校验中"冲突时必须读过全文"暂不加，看 v2 效果再决定。
+
+**理由**：未说明。
+
+**Claude Code 实现说明**：
+- 基线移动后，同步修正了 `eval_results_real_v1.md` 中的 trace 链接和 v1 trace JSONL 中的 `trace_file` 字段（`examples/real/` → `examples/real/v1/`），trace 内容本身未改。
+- 原 `data/variant` 用 `git mv` 改名为 `data/variant_b`（其内容正是 variant_b 的设计）；`data/variant_a` 由它复制后把 D05 换回主数据集版本。
+- 本步只重跑 V03、V05，tag 为 `v1-variant-split`（结果 `examples/eval_results_real_v1-variant-split.md`，trace `examples/real/v1-variant-split/`）。Mock trace 因 V03/V05 数据目录变化重新生成。
+- 测试中替换版检查拆为 variant_a / variant_b 两个测试，并断言除改动文档外其余文档与基准完全相同。
+
+**验证方式与结果**：
+- `pytest` 116 个测试全部通过；`run_eval.py --mock` 16/16。
+- 真实模型 `--cases V03 V05 --repeat 3 --tag v1-variant-split`（`examples/eval_results_real_v1-variant-split.md`）：
+  - V05（variant_b）：3/3 通过（v1 也是 3/3）。
+  - V03（variant_a）：1/3 通过（v1 也是 1/3），仍未达预期。
+- Claude Code 从 trace 看到的 V03 情况（尚待我判断）：3 次路径都是 `S→R:D01(P2)→R:D05(P2)→F`，只读了两份文档的第二段。3 次 answer 内容基本一致——"一般费用 20 天内（D01）；差旅费用出差结束后 10 天内（D05）"，内容本身与文档相符；差别只在状态：1 次标 answered，2 次标 conflict_need_confirmation 并请用户确认。模型没有读 D05 第一段（适用范围）和第三段（优先于通用规定），因此没有依据判断二者是"一般 vs 差旅"的分工而非冲突。V03 的失败已不再来自数据设计，和 C05/C06 一样属于"只读片段、不读全文核实"。

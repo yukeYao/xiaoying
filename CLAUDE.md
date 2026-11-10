@@ -27,7 +27,7 @@
 | 安装依赖 | `.venv/Scripts/python -m pip install -r requirements.txt` | `.venv/bin/python -m pip install -r requirements.txt` |
 | 运行测试 | `.venv/Scripts/python -m pytest -q` | `.venv/bin/python -m pytest -q` |
 | 检索评测 | `.venv/Scripts/python scripts/eval_retrieval.py` | `.venv/bin/python scripts/eval_retrieval.py` |
-| 检索评测（替换版数据） | `.venv/Scripts/python scripts/eval_retrieval.py --data-dir data/variant/docs --out examples/retrieval_eval_variant.md` | `.venv/bin/python scripts/eval_retrieval.py --data-dir data/variant/docs --out examples/retrieval_eval_variant.md` |
+| 检索评测（替换版数据） | `.venv/Scripts/python scripts/eval_retrieval.py --data-dir data/variant_a/docs --out examples/retrieval_eval_variant_a.md` | `.venv/bin/python scripts/eval_retrieval.py --data-dir data/variant_a/docs --out examples/retrieval_eval_variant_a.md` |
 
 Windows 终端输出中文乱码时，先设置 `PYTHONIOENCODING=utf-8`（Git Bash：`export PYTHONIOENCODING=utf-8`；PowerShell：`$env:PYTHONIOENCODING="utf-8"`）。
 
@@ -39,7 +39,7 @@ CLI（下表为 Windows 写法；macOS / Linux 把 `.venv/Scripts/python` 换成
 | 单个问题（真实模型） | `.venv/Scripts/python -m src.cli "报销期限多久？"` |
 | 按用例运行（真实模型） | `.venv/Scripts/python -m src.cli --case C03` |
 | 按用例运行（Mock，只验证流程） | `.venv/Scripts/python -m src.cli --case C03 --mock` |
-| 替换数据 / 步数 / 故障注入 | `--data-dir data/variant/docs`、`--max-steps 5`、`--fail-tool search_docs --fail-times 1` |
+| 替换数据 / 步数 / 故障注入 | `--data-dir data/variant_a/docs`（或 `variant_b`）、`--max-steps 5`、`--fail-tool search_docs --fail-times 1` |
 | 保存 trace | `--trace-dir <目录>` |
 | 交互多轮（真实模型） | `.venv/Scripts/python -m src.cli --chat` |
 | 端到端评测（Mock） | `.venv/Scripts/python scripts/run_eval.py --mock` |

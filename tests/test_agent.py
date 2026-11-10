@@ -192,7 +192,7 @@ def test_cli_mock_case(capsys):
 
 def test_cli_overrides_data_dir(capsys):
     # 用替换版数据跑 C03 的 Mock 脚本：脚本引用 D02，而替换版没有 D02 → 读取报错、引用被拒，最终 incomplete
-    main(["--case", "C03", "--mock", "--data-dir", "data/variant/docs"])
+    main(["--case", "C03", "--mock", "--data-dir", "data/variant_a/docs"])
     out = json.loads(capsys.readouterr().out)
     assert out["status"] == "incomplete"
 
