@@ -2,6 +2,11 @@
 
 步数计算：每次工具调用算 1 步；被拒绝的 finish 和没有调用工具的纯文本回复也各算 1 步。
 达到 max_steps 仍未结束时返回 status=incomplete, reason=max_steps_reached。
+
+两类失败的处理不同：
+- 工具失败（检索/读取报错）：错误作为 observation 交给模型，由模型决定重试、换工具或结束。
+- 模型调用失败（网络、限流等）：模型无法决策；llm.py 在 API 层对临时错误重试 1 次，
+  仍失败时这里返回 status=failed, reason=llm_error。
 """
 import json
 

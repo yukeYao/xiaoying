@@ -151,3 +151,30 @@
 **理由**：未说明（上述细节为 Claude Code 实现时的选择，我尚未表态）。
 
 **验证方式**：`pytest` 共 92 个测试全部通过（新增 tests/test_finish.py 引用校验 / ask_user / 故障注入 / 参数错误，tests/test_agent.py Mock 用例流程 / 步数上限 / 无工具调用 / 错误引用纠正 / trace / CLI）。16 个用例的 Mock 脚本全部得到期望状态。尚未用真实模型跑用例（阶段 4）。
+
+---
+
+## 2026-11-10 阶段 3 第二步审核
+
+**原方案**：Claude Code 在阶段 3 第二步报告中列出待审核事项：V05 期望（替换版 D05 仍写有差旅适用范围）、C10 的另一条可接受路径、CLI 提前实现，以及多个工具调用计步、模型调用出错不重试、read_doc 含不存在段落时整体报错这几个实现细节。
+
+**最终决定及改动内容**（我决定）：
+1. V05：修改替换版数据，而不是改期望。`data/variant/docs/D05.md` 的适用范围改为"适用于公司全部费用报销"（元数据 scope 改为 `公司全部费用报销`，第一段改为"本规定适用于公司全部费用报销。"），保持已删除的优先级条款，使它和 D01 构成同一范围的直接冲突。V05 期望保持 `conflict_need_confirmation`。同步更新 `data/variant/README.md`。
+2. C10：期望状态允许 `failed` 或 `answered`（answered 必须通过引用校验）。评测时记录模型实际走了哪条路。
+3. CLI 提前到阶段 3 实现：同意。
+4. 细节：
+   - 一次回复中多个工具调用各算 1 步：同意。
+   - 模型调用出错：对超时、连接错误、429 这类临时错误，短暂等待后重试 1 次，仍失败再返回 `failed / llm_error`。在文档中说明这是 API 层的重试，和"工具失败由模型决定下一步"是两回事。
+   - read_doc：改为返回存在的段落并登记，同时在返回结果中列出不存在的段落编号。
+
+**理由**：未说明。
+
+**Claude Code 实现时的补充（尚待我审核）**：
+- C10 去掉了 `expect_gaps`：允许 answered 后，answered 路径的 gaps 可能为空。failed 时是否说明缺口，留到阶段 4 评测时检查。
+- 重试实现：`src/llm.py` 关闭 openai SDK 自带的自动重试（`max_retries=0`），只由自己的逻辑重试；等待 2 秒（`retry_wait` 可配置）；401 等其他错误不重试。说明写在 `src/llm.py` 和 `src/agent.py` 的模块注释中，阶段 5 写入 docs/02-solution.md。
+- read_doc：请求的段落全部不存在时仍返回 `not_found` 错误、不登记；部分不存在时返回 `missing_paragraphs` 和 `note`。
+- 新增 Mock 序列 `C10_READ_DIRECT`（检索失败后直接读取 D03 并回答），用于测试 C10 的 answered 路径。
+- 原测试 `test_failed_read_does_not_register`（断言部分段落不存在时整体不登记）与新决定冲突，按新决定替换为 `test_partial_read_registers_existing_paragraphs`。这是需求变更导致的测试修改，不是迁就失败结果。
+- 测试中构造 openai 异常需要底层 HTTP 库：openai 3.49 使用 `httpx2`（不再依赖 `httpx`），测试优先导入 `httpx2`，否则回退到 `httpx`。
+
+**验证方式**：`pytest` 共 105 个测试全部通过（新增 tests/test_llm.py：3 类临时错误重试 1 次后成功、连续 2 次失败抛出、401 不重试、SDK 自动重试已关闭、持续失败在 agent 中变为 llm_error；read_doc 部分缺失；替换版 D05 适用范围；C10 answered 路径）。

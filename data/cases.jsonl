@@ -7,10 +7,10 @@
 {"id": "C07", "acceptance": ["资料外问题"], "question": "公司股票期权怎么行权？", "expected_status": ["out_of_scope"], "expect_gaps": true}
 {"id": "C08", "acceptance": ["上下文追问"], "question": "那超过3天呢？", "history": [{"role": "user", "content": "请假3天要谁审批？"}, {"role": "assistant", "content": "根据 D04《请假审批流程》（2024-02-01）：请假3天及以内的，由直属主管审批。"}], "expected_status": ["answered"], "expected_citation_docs": ["D04"]}
 {"id": "C09", "acceptance": ["追问"], "question": "这个能报吗？", "expected_status": ["need_clarification"], "notes": "无上下文，指代不清"}
-{"id": "C10", "acceptance": ["工具失败"], "question": "工作满5年有几天年假？", "fail_tool": "search_docs", "fail_times": null, "expected_status": ["failed"], "expect_gaps": true, "notes": "search_docs 每次都失败。模型若直接 read_doc 猜文档并有依据地回答，也属合理恢复，评测时单独说明"}
+{"id": "C10", "acceptance": ["工具失败"], "question": "工作满5年有几天年假？", "fail_tool": "search_docs", "fail_times": null, "expected_status": ["failed", "answered"], "notes": "search_docs 每次都失败。可接受两条路径：failed（说明缺口）；或绕过检索直接 read_doc 并有依据地回答（answered 必须通过引用校验）。评测时记录模型实际走了哪条路径"}
 {"id": "C11", "acceptance": ["工具失败"], "question": "工作满5年有几天年假？", "fail_tool": "search_docs", "fail_times": 1, "expected_status": ["answered"], "expected_citation_docs": ["D03"], "notes": "search_docs 第 1 次失败后恢复，模型应重试"}
 {"id": "C12", "acceptance": ["步数上限"], "question": "报销期限多久？", "max_steps": 2, "expected_status": ["incomplete"], "notes": "max_steps=2，冲突用例无法在 2 步内完成"}
 {"id": "C13", "acceptance": ["资料外问题"], "question": "年假没休完能折现吗？", "expected_status": ["out_of_scope", "answered"], "expect_gaps": true, "notes": "D03 会被检索到但没有折现规则；out_of_scope，或部分回答并在 gaps 中说明缺口，不得编造规则"}
 {"id": "C14", "acceptance": ["资料外问题"], "question": "客户在系统里导不出报表数据，提示超时报错，这个该怎么处理或者联系谁解决？", "expected_status": ["out_of_scope"], "expect_gaps": true, "notes": "盲测 B05；检索会返回无关段落（D03/D02/D04），D09 是视频导出不适用"}
 {"id": "V03", "acceptance": ["替换文档"], "question": "报销期限多久？", "data_dir": "data/variant/docs", "expected_status": ["answered"], "expected_citation_docs": ["D01"], "notes": "替换版：D02 删除、D01 改为 20 天，对比 C03"}
-{"id": "V05", "acceptance": ["替换文档", "文档冲突"], "question": "出差回来多久内必须报销？", "data_dir": "data/variant/docs", "expected_status": ["conflict_need_confirmation"], "expected_citation_docs": ["D01", "D05"], "notes": "替换版：D05 删除优先级条款，对比 C05。注意 D05 仍写有适用范围（差旅），期望是否应为 conflict 待确认"}
+{"id": "V05", "acceptance": ["替换文档", "文档冲突"], "question": "出差回来多久内必须报销？", "data_dir": "data/variant/docs", "expected_status": ["conflict_need_confirmation"], "expected_citation_docs": ["D01", "D05"], "notes": "替换版：D05 删除优先级条款，适用范围改为公司全部费用报销，与 D01（20 天）同范围直接冲突。对比 C05"}

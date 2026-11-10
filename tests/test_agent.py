@@ -194,3 +194,10 @@ def test_cli_overrides_data_dir(capsys):
     main(["--case", "C03", "--mock", "--data-dir", "data/variant/docs"])
     out = json.loads(capsys.readouterr().out)
     assert out["status"] == "incomplete"
+
+
+def test_c10_alternative_path_read_directly(kb):
+    # C10 允许 answered：search_docs 一直失败时绕过检索直接读取，引用仍需通过校验
+    result, llm = run(kb, MOCK_SCRIPTS["C10_READ_DIRECT"], fail_tool="search_docs")
+    assert tool_observations(llm)[0]["error"]["type"] == "tool_unavailable"
+    assert result["status"] == "answered" and result["status"] in CASES["C10"]["expected_status"]

@@ -89,10 +89,17 @@ def test_reading_other_paragraph_does_not_count(runner):
     assert final is None and "read_doc" in problems(obs)
 
 
-def test_failed_read_does_not_register(runner):
-    runner.call("read_doc", {"doc_id": "D03", "paragraph_ids": ["P1", "P9"]})  # 含不存在段落 → 整体报错
+def test_partial_read_registers_existing_paragraphs(runner):
+    # 请求中部分段落不存在：返回并登记存在的段落，列出不存在的编号
+    obs, _ = runner.call("read_doc", {"doc_id": "D03", "paragraph_ids": ["P1", "P9"]})
+    assert [p["paragraph_id"] for p in obs["paragraphs"]] == ["P1"] and obs["missing_paragraphs"] == ["P9"]
     _, final = finish(runner, citations=[D03_P1])
-    assert final is None
+    assert final is not None
+
+
+def test_read_with_no_existing_paragraph_registers_nothing(runner):
+    obs, _ = runner.call("read_doc", {"doc_id": "D03", "paragraph_ids": ["P8", "P9"]})
+    assert obs["error"]["type"] == "not_found" and not runner.read_paragraphs
 
 
 def test_unknown_doc_and_paragraph_rejected(runner):

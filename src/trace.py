@@ -21,7 +21,8 @@ def summarize(tool: str | None, obs: dict) -> str:
         return f"命中 {len(hits)} 条：" + "，".join(f"{h['doc_id']}/{h['paragraph_id']}({h['score']})" for h in hits)
     if tool == "read_doc":
         pids = ",".join(p["paragraph_id"] for p in obs["paragraphs"])
-        return f"{obs['doc_id']}《{obs['title']}》版本 {obs['version_date']}，段落 {pids}"
+        missing = f"；不存在：{','.join(obs['missing_paragraphs'])}" if obs.get("missing_paragraphs") else ""
+        return f"{obs['doc_id']}《{obs['title']}》版本 {obs['version_date']}，段落 {pids}{missing}"
     if tool == "ask_user":
         return f"用户回复：{obs['user_reply']}" if "user_reply" in obs else "非交互模式，提示模型调用 finish"
     if tool == "finish":

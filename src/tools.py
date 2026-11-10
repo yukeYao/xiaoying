@@ -53,13 +53,18 @@ class KnowledgeBase:
         if doc is None:
             return error("not_found", f"文档 {doc_id} 不存在。可用文档：{', '.join(self.docs)}")
         ids = paragraph_ids or list(doc.paragraphs)
+        found = [p for p in ids if p in doc.paragraphs]
         missing = [p for p in ids if p not in doc.paragraphs]
-        if missing:
+        if not found:
             return error("not_found", f"{doc_id} 中没有段落 {', '.join(missing)}。可用段落：{', '.join(doc.paragraphs)}")
-        return {
+        out = {
             "doc_id": doc.doc_id, "title": doc.title, "version_date": doc.version_date, "scope": doc.scope,
-            "paragraphs": [{"paragraph_id": p, "text": doc.paragraphs[p]} for p in ids],
+            "paragraphs": [{"paragraph_id": p, "text": doc.paragraphs[p]} for p in found],
         }
+        if missing:  # 部分段落不存在：返回存在的段落，并列出不存在的编号
+            out["missing_paragraphs"] = missing
+            out["note"] = f"{doc_id} 中没有段落 {', '.join(missing)}。可用段落：{', '.join(doc.paragraphs)}"
+        return out
 
 
 # ---------------------------------------------------------------------------

@@ -47,6 +47,9 @@ def test_variant_dataset_differs_as_documented():
     assert "30天内" in main["D01"].paragraphs["P2"] and "20天内" in variant["D01"].paragraphs["P2"]
     assert any("优先于" in p for p in main["D05"].paragraphs.values())
     assert not any("优先于" in p for p in variant["D05"].paragraphs.values())
+    # 替换版 D05 与 D01 同范围：适用于公司全部费用报销
+    assert main["D05"].scope == "差旅费用报销" and variant["D05"].scope == "公司全部费用报销"
+    assert variant["D05"].paragraphs["P1"] == "本规定适用于公司全部费用报销。"
 
 
 def test_load_docs_empty_dir_raises(tmp_path):
@@ -159,6 +162,17 @@ def test_read_doc_unknown_doc(kb):
 def test_read_doc_unknown_paragraph(kb):
     err = kb.read_doc("D01", ["P9"])["error"]
     assert err["type"] == "not_found" and "P9" in err["message"]
+
+
+def test_read_doc_partially_missing_paragraphs(kb):
+    out = kb.read_doc("D01", ["P2", "P9", "P10"])
+    assert "error" not in out
+    assert [p["paragraph_id"] for p in out["paragraphs"]] == ["P2"]
+    assert out["missing_paragraphs"] == ["P9", "P10"] and "P9" in out["note"]
+
+
+def test_read_doc_all_found_has_no_missing_field(kb):
+    assert "missing_paragraphs" not in kb.read_doc("D01", ["P1", "P2"])
 
 
 # ---------- 检索评测集 ----------
