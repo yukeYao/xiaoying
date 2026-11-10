@@ -83,22 +83,28 @@ def test_paragraph_seen_only_via_search_rejected(runner):
     assert final is None and "read_doc" in problems(obs)
 
 
-def test_reading_other_paragraph_does_not_count(runner):
+def test_read_doc_registers_whole_document(runner):
+    # read_doc 总是返回全文：请求 P2 也会登记 P1，因此可以引用 P1
     runner.call("read_doc", {"doc_id": "D03", "paragraph_ids": ["P2"]})
-    obs, final = finish(runner, citations=[D03_P1])
-    assert final is None and "read_doc" in problems(obs)
-
-
-def test_partial_read_registers_existing_paragraphs(runner):
-    # 请求中部分段落不存在：返回并登记存在的段落，列出不存在的编号
-    obs, _ = runner.call("read_doc", {"doc_id": "D03", "paragraph_ids": ["P1", "P9"]})
-    assert [p["paragraph_id"] for p in obs["paragraphs"]] == ["P1"] and obs["missing_paragraphs"] == ["P9"]
+    assert {("D03", p) for p in ("P1", "P2", "P3", "P4")} <= runner.read_paragraphs
     _, final = finish(runner, citations=[D03_P1])
     assert final is not None
 
 
-def test_read_with_no_existing_paragraph_registers_nothing(runner):
+def test_reading_other_document_does_not_count(runner):
+    runner.call("read_doc", {"doc_id": "D01"})
+    obs, final = finish(runner, citations=[D03_P1])
+    assert final is None and "read_doc" in problems(obs)
+
+
+def test_read_with_missing_paragraph_ids_still_registers_full_text(runner):
     obs, _ = runner.call("read_doc", {"doc_id": "D03", "paragraph_ids": ["P8", "P9"]})
+    assert obs["missing_paragraphs"] == ["P8", "P9"] and len(obs["paragraphs"]) == 4
+    assert ("D03", "P1") in runner.read_paragraphs
+
+
+def test_failed_read_registers_nothing(runner):
+    obs, _ = runner.call("read_doc", {"doc_id": "D99"})
     assert obs["error"]["type"] == "not_found" and not runner.read_paragraphs
 
 

@@ -52,18 +52,18 @@ class KnowledgeBase:
         doc = self.docs.get(doc_id)
         if doc is None:
             return error("not_found", f"文档 {doc_id} 不存在。可用文档：{', '.join(self.docs)}")
-        ids = paragraph_ids or list(doc.paragraphs)
-        found = [p for p in ids if p in doc.paragraphs]
-        missing = [p for p in ids if p not in doc.paragraphs]
-        if not found:
-            return error("not_found", f"{doc_id} 中没有段落 {', '.join(missing)}。可用段落：{', '.join(doc.paragraphs)}")
+        # 总是返回全文：适用范围、优先级、废止说明常在其他段落，只读命中段落容易漏掉。
+        # paragraph_ids 只用于标注请求的段落（requested_paragraphs），不限制返回内容。
         out = {
             "doc_id": doc.doc_id, "title": doc.title, "version_date": doc.version_date, "scope": doc.scope,
-            "paragraphs": [{"paragraph_id": p, "text": doc.paragraphs[p]} for p in found],
+            "paragraphs": [{"paragraph_id": p, "text": t} for p, t in doc.paragraphs.items()],
         }
-        if missing:  # 部分段落不存在：返回存在的段落，并列出不存在的编号
-            out["missing_paragraphs"] = missing
-            out["note"] = f"{doc_id} 中没有段落 {', '.join(missing)}。可用段落：{', '.join(doc.paragraphs)}"
+        if paragraph_ids:
+            out["requested_paragraphs"] = [p for p in paragraph_ids if p in doc.paragraphs]
+            missing = [p for p in paragraph_ids if p not in doc.paragraphs]
+            if missing:
+                out["missing_paragraphs"] = missing
+                out["note"] = f"{doc_id} 中没有段落 {', '.join(missing)}，已返回全文（可用段落：{', '.join(doc.paragraphs)}）"
         return out
 
 
@@ -90,9 +90,11 @@ TOOL_SCHEMAS = [
           {"query": {"type": "string", "description": "检索语句或关键词"},
            "top_k": {"type": "integer", "description": "返回段落数，1-10，默认 5"}},
           ["query"]),
-    _tool("read_doc", "读取文档原文（带段落编号）。不传 paragraph_ids 时返回全文。引用前必须用它读取对应段落。",
+    _tool("read_doc", "读取文档全文（带段落编号、标题、版本日期、适用范围）。总是返回整篇文档，"
+                      "便于核对适用范围、优先级、废止/替代说明。引用前必须先用它读取对应文档。",
           {"doc_id": {"type": "string", "description": "文档 ID，如 D01"},
-           "paragraph_ids": {"type": "array", "items": {"type": "string"}, "description": "段落编号，如 [\"P2\"]"}},
+           "paragraph_ids": {"type": "array", "items": {"type": "string"},
+                             "description": "可选：重点关注的段落编号，如 [\"P2\"]；只做标注，仍返回全文"}},
           ["doc_id"]),
     _tool("ask_user", "向用户追问或请用户确认（如问题指代不清、资料冲突需确认适用制度）。",
           {"question": {"type": "string", "description": "要问用户的问题"}},

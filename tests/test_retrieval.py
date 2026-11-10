@@ -161,26 +161,29 @@ def test_read_doc_full(kb):
     assert [p["paragraph_id"] for p in out["paragraphs"]] == ["P1", "P2", "P3", "P4", "P5"]
 
 
-def test_read_doc_selected_paragraphs(kb):
-    out = kb.read_doc("D05", ["P3"])
+def test_read_doc_always_returns_full_text(kb):
+    # 请求 P2 也返回全文，P3 的优先级条款不会被漏掉；paragraph_ids 只做标注
+    out = kb.read_doc("D05", ["P2"])
     assert out["scope"] == "差旅费用报销"
-    assert out["paragraphs"] == [{"paragraph_id": "P3", "text": "本规定关于差旅费用报销期限的条款优先于公司通用报销规定执行。"}]
+    assert [p["paragraph_id"] for p in out["paragraphs"]] == ["P1", "P2", "P3", "P4"]
+    assert {"paragraph_id": "P3", "text": "本规定关于差旅费用报销期限的条款优先于公司通用报销规定执行。"} in out["paragraphs"]
+    assert out["requested_paragraphs"] == ["P2"]
 
 
 def test_read_doc_unknown_doc(kb):
     assert kb.read_doc("D99")["error"]["type"] == "not_found"
 
 
-def test_read_doc_unknown_paragraph(kb):
-    err = kb.read_doc("D01", ["P9"])["error"]
-    assert err["type"] == "not_found" and "P9" in err["message"]
-
-
-def test_read_doc_partially_missing_paragraphs(kb):
+def test_read_doc_unknown_paragraph_returns_full_text_with_note(kb):
     out = kb.read_doc("D01", ["P2", "P9", "P10"])
-    assert "error" not in out
-    assert [p["paragraph_id"] for p in out["paragraphs"]] == ["P2"]
+    assert "error" not in out and len(out["paragraphs"]) == 5
+    assert out["requested_paragraphs"] == ["P2"]
     assert out["missing_paragraphs"] == ["P9", "P10"] and "P9" in out["note"]
+
+
+def test_read_doc_without_paragraph_ids_has_no_request_fields(kb):
+    out = kb.read_doc("D01")
+    assert "requested_paragraphs" not in out and len(out["paragraphs"]) == 5
 
 
 def test_read_doc_all_found_has_no_missing_field(kb):

@@ -4,14 +4,14 @@
 
 ## 用时记录
 
-这是一个 3 天的项目，题目建议投入 3 小时。核心链路（阶段 3、4）跑通时打 git tag `core-complete`，之后的工作都算延伸改进。各阶段实际用时由我本人填写。
+这是一个 3 天的项目，题目建议投入 3 小时。核心链路（阶段 3、4）跑通时打 git tag `core-complete`，之后的工作都算延伸改进。用时记录由 Claude Code 维护（阶段开始、结束时运行 `date` 记录），我负责核对。备注列标明时间来源。
 
 | 阶段 | 内容 | 开始 | 结束 | 实际用时 | 备注 |
 |---|---|---|---|---|---|
-| 1 | 方案 |  |  |  |  |
-| 2 | 数据集 + 检索工具 + 确定性测试 |  |  |  |  |
-| 3 | Agent 循环 + 模型接入 + Mock + 步数上限 + 故障注入 + 引用校验 |  |  |  |  |
-| 4 | CLI + Trace + 真实模型跑用例 |  |  |  |  |
+| 1 | 方案 | 2026-11-10 17:34 | 17:51 | 约 17 分钟 | 根据提交时间推算：开始时间由我提供；结束取阶段 1 审核补录时间 17:51 |
+| 2 | 数据集 + 检索工具 + 确定性测试 | 17:51 | 18:39 | 约 48 分钟 | 根据提交时间推算：开始取阶段 1 补录时间；结束取提交 ce4500f |
+| 3 | Agent 循环 + 模型接入 + Mock + 步数上限 + 故障注入 + 引用校验 | 18:39 | 19:39 | 约 60 分钟 | 根据提交时间推算：开始取 ce4500f；结束取提交 1e03d6a；含推送 GitHub 和 smoke 测试（7760cd2 19:22） |
+| 4 | CLI + Trace + 真实模型跑用例 | 19:39 | 进行中 | — | 根据提交时间推算：开始取 1e03d6a；已提交 6b1145f（19:51）、f09fed6（19:56）；20:00 起实时记录 |
 | — | `core-complete` tag |  |  |  |  |
 | 5 | 文档 01–03、README，04/05 模板 |  |  |  |  |
 | 延伸 |  |  |  |  |  |
@@ -250,3 +250,36 @@
   - V05（variant_b）：3/3 通过（v1 也是 3/3）。
   - V03（variant_a）：1/3 通过（v1 也是 1/3），仍未达预期。
 - Claude Code 从 trace 看到的 V03 情况（尚待我判断）：3 次路径都是 `S→R:D01(P2)→R:D05(P2)→F`，只读了两份文档的第二段。3 次 answer 内容基本一致——"一般费用 20 天内（D01）；差旅费用出差结束后 10 天内（D05）"，内容本身与文档相符；差别只在状态：1 次标 answered，2 次标 conflict_need_confirmation 并请用户确认。模型没有读 D05 第一段（适用范围）和第三段（优先于通用规定），因此没有依据判断二者是"一般 vs 差旅"的分工而非冲突。V03 的失败已不再来自数据设计，和 C05/C06 一样属于"只读片段、不读全文核实"。
+
+---
+
+## 2026-11-10 阶段 4 改进第 2 步：read_doc 总是返回全文（v2）
+
+**原方案**：我决定"read_doc 默认返回全文，paragraph_ids 保留为可选参数，更新工具 description"。Claude Code 指出原实现已经是"不传 paragraph_ids 就返回全文"，而 v1 中模型每次都主动传了 paragraph_ids，因此询问具体行为。
+
+**最终决定及改动内容**（我选择）：总是返回全文——无论是否传 paragraph_ids 都返回整篇文档；传入的段落在结果中标注为 `requested_paragraphs`，不存在的列为 `missing_paragraphs`（附 note，不再报错）；引用登记覆盖全文所有段落。工具 description 改为"读取文档全文……总是返回整篇文档，便于核对适用范围、优先级、废止/替代说明"。finish 校验中"冲突时必须读过全文"暂不加。
+
+**理由**：未说明。
+
+**测试修改**（需求变更导致，不是迁就失败结果）：以下 6 个测试断言的是旧行为"只返回请求的段落 / 不存在段落时报错"，按新决定改写：`test_reading_other_paragraph_does_not_count` → `test_read_doc_registers_whole_document` + `test_reading_other_document_does_not_count`；`test_partial_read_registers_existing_paragraphs`、`test_read_with_no_existing_paragraph_registers_nothing` → `test_read_with_missing_paragraph_ids_still_registers_full_text` + `test_failed_read_registers_nothing`；`test_read_doc_selected_paragraphs` → `test_read_doc_always_returns_full_text`；`test_read_doc_unknown_paragraph`、`test_read_doc_partially_missing_paragraphs` → `test_read_doc_unknown_paragraph_returns_full_text_with_note` + `test_read_doc_without_paragraph_ids_has_no_request_fields`。
+
+**验证方式与结果**：`pytest` 117 个通过；Mock 16/16。真实模型 `--repeat 3 --tag v2`（`examples/eval_results_real_v2.md`）：总通过率 33/48（v1 为 34/48，其中 V03/V05 按 v1-variant-split 计）。
+
+| 用例 | v1 | v2 |
+|---|---|---|
+| V03 | 1/3 | 3/3 |
+| C14 | 1/3 | 2/3 |
+| C03 | 2/3 | 1/3 |
+| C04 | 2/3 | 0/3 |
+| C13 | 3/3 | 2/3 |
+| C05、C06 | 0/3 | 0/3 |
+| C10 | 1/3 | 1/3 |
+| 其余 9 个 | 全部 3/3 | 全部 3/3 |
+
+**Claude Code 从 trace 看到的情况（尚待我判断）**：
+- V03 变为通过：3 次都标 answered，其中 2 次引用了 D05 P3（优先于通用规定）——全文让模型看到了适用关系。
+- C05、C06 仍 0/3：全文已返回（trace 显示 D05 的 P1–P4、D07 的 P1–P4 都在 observation 中），但模型仍按自己请求的段落作答，忽略了 D05 P3 的优先级条款和 D07 P1 的废止说明，报 conflict。说明"能看到"不等于"会去核对"。
+- C03、C04 变差，出现新的失败形态：4 次标 answered，把 D01 30 天、D02 15 天、D05 10 天并列列出而不指出 D01 与 D02 冲突——这比 v1 的 need_clarification 更严重（相互矛盾的规定被当成答案）。另 1 次（C04 run3）仍问"一般还是差旅"。是否由全文变长导致无法确定，也可能是随机波动。
+- C13 run2：answer 内容正确（未提到折现、逾期作废），但状态标 need_clarification 而不是 out_of_scope。
+- C14：run1 仍为 need_clarification；run2 虽通过，但 answer 中仍有文档以外的建议（"检查设备存储空间、联系技术支持"）且无引用。
+- C10：不变，仍反复重试检索直到步数上限（第 3 步的 prompt 修改针对此问题）。
