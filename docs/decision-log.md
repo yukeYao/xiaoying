@@ -119,3 +119,15 @@
 - `git check-ignore -v task.txt` 确认被忽略。
 - 盲测集去掉 B05 后剩 4 条计入指标，三种模式仍相同：recall@1 0.708、recall@3 1.000、MRR 1.000（此前含 B05 时为 0.567 / 0.800 / 0.800）。B05 在三种模式下 top3 均为 D03,D02,D04，最高分约 1.9–2.0。
 - `pytest` 28 个测试全部通过。
+
+---
+
+## 2026-11-10 阶段 3 第一步：真实模型最小调用测试
+
+**原方案**：阶段 1 取舍 H（Claude Code 提出，我采纳）：阶段 3 先做最小调用测试。我要求写独立脚本 `scripts/smoke_llm.py`，失败时先排查 key / 网络 / 模型，不继续写循环。
+
+**最终决定及改动内容**：新增 `scripts/smoke_llm.py`（从 .env 读配置，提供假工具 search_docs，检查是否返回 tool call，不打印 key 内容）。我确认 smoke 测试结果，同意进入第二步。
+
+**理由**：未说明。
+
+**验证方式**：运行 3 次，模型 `gpt-4o-mini`（返回 `gpt-4o-mini-2024-07-18`），均返回 `search_docs` tool call，`finish_reason = tool_calls`，耗时 3.73s / 2.57s / 4.13s，temperature=0 下三次参数相同，无错误。
