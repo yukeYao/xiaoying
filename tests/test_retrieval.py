@@ -59,6 +59,8 @@ def test_variant_b_differs_as_documented():
     assert not any("优先于" in p for p in vb["D05"].paragraphs.values())
     assert main["D05"].scope == "差旅费用报销" and vb["D05"].scope == "公司全部费用报销"
     assert vb["D05"].paragraphs["P1"] == "本规定适用于公司全部费用报销。"
+    # C0 修正：标题和正文不再含"差旅"，与适用范围一致
+    assert "差旅" not in vb["D05"].title and not any("差旅" in p for p in vb["D05"].paragraphs.values())
     for doc_id in vb:
         if doc_id != "D05":
             assert vb[doc_id] == va[doc_id], doc_id
