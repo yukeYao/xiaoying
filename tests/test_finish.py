@@ -17,10 +17,23 @@ def runner(kb):
     return ToolRunner(kb)
 
 
-def finish(runner, status="answered", citations=(), answer="回答", gaps=()):
-    args = {"status": status, "answer": answer, "gaps": list(gaps),
+def finish(runner, status="answered", citations=(), answer="回答", gaps=(), conflict_check=None):
+    """conflict_check 不传时，按本次读过的文档自动生成"与问题无关"的 claims，
+    使这些测试只关注引用校验；conflict_check 的规则在下方单独测试。"""
+    if conflict_check is None:
+        read = sorted({d for d, _ in runner.read_paragraphs})
+        conflict_check = {"claims": [{"doc_id": d, "claim": "与问题无关", "scope_quote": "未说明"} for d in read],
+                          "relations": []}
+    args = {"status": status, "answer": answer, "gaps": list(gaps), "conflict_check": conflict_check,
             "citations": [{"doc_id": d, "paragraph_id": p, "quote": q} for d, p, q in citations]}
     return runner.call("finish", args)
+
+
+def cc(claims=(), relations=()):
+    return {"claims": [{"doc_id": d, "claim": c, "scope_quote": s} for d, c, s in claims],
+            "relations": [{"docs": list(docs), "type": t,
+                           "basis": {"doc_id": b[0], "paragraph_id": b[1], "quote": b[2]} if b else None}
+                          for docs, t, b in relations]}
 
 
 D03_P1 = ("D03", "P1", "员工累计工作已满1年不满10年的，年休假5天")
@@ -135,8 +148,141 @@ def test_conflict_requires_two_different_docs(runner):
 def test_conflict_with_two_docs_accepted(runner):
     runner.call("read_doc", {"doc_id": "D01"})
     runner.call("read_doc", {"doc_id": "D02"})
-    _, final = finish(runner, status="conflict_need_confirmation", citations=[D01_P2, D02_P2])
+    _, final = finish(runner, status="conflict_need_confirmation", citations=[D01_P2, D02_P2],
+                      conflict_check=cc([("D01", "30天", "未说明"), ("D02", "15天", "未说明")],
+                                        [(("D01", "D02"), "true_conflict", None)]))
     assert final["status"] == "conflict_need_confirmation"
+    assert final["conflict_check"]["relations"][0]["type"] == "true_conflict"
+
+
+# ---------- conflict_check ----------
+
+def read(runner, *doc_ids):
+    for d in doc_ids:
+        runner.call("read_doc", {"doc_id": d})
+
+
+def test_conflict_check_required(runner):
+    obs, final = runner.call("finish", {"status": "out_of_scope", "answer": "无", "citations": [], "gaps": ["缺资料"]})
+    assert final is None and "conflict_check 必填" in problems(obs)
+
+
+def test_conflict_check_empty_when_nothing_read(runner):
+    _, final = finish(runner, status="out_of_scope", gaps=["缺资料"], conflict_check=cc())
+    assert final is not None
+
+
+def test_rule1_claims_must_cover_all_read_docs(runner):
+    read(runner, "D01", "D02")
+    obs, final = finish(runner, status="out_of_scope", gaps=["x"], conflict_check=cc([("D01", "30天", "未说明")]))
+    assert final is None and "缺少本次读过的文档：D02" in problems(obs)
+
+
+def test_single_relevant_doc_needs_no_relations(runner):
+    read(runner, "D03")
+    _, final = finish(runner, citations=[D03_P1], conflict_check=cc([("D03", "5天", "未说明")]))
+    assert final is not None
+
+
+def test_unrelated_docs_need_no_relations(runner):
+    read(runner, "D03", "D09")
+    _, final = finish(runner, citations=[D03_P1],
+                      conflict_check=cc([("D03", "5天", "未说明"), ("D09", "与问题无关", "未说明")]))
+    assert final is not None
+
+
+def test_relevant_docs_must_be_pairwise_related(runner):
+    # 修改后的要求：claim 不是"与问题无关"的文档两两都要有关系，不论结论是否不同
+    read(runner, "D01", "D02", "D05")
+    claims = [("D01", "30天", "未说明"), ("D02", "15天", "未说明"), ("D05", "差旅10天", "差旅费用报销")]
+    obs, final = finish(runner, status="conflict_need_confirmation", citations=[D01_P2, D02_P2],
+                        conflict_check=cc(claims, [(("D01", "D02"), "true_conflict", None)]))
+    text = problems(obs)
+    assert final is None and "D01–D05" in text and "D02–D05" in text and "D01–D02" not in text
+
+
+def test_rule2_basis_required_for_scope_split_superseded_priority(runner):
+    read(runner, "D06", "D07")
+    for rtype in ("scope_split", "superseded", "priority"):
+        obs, final = finish(runner, conflict_check=cc([("D06", "4年", "未说明"), ("D07", "3年", "未说明")],
+                                                      [(("D06", "D07"), rtype, None)]),
+                            citations=[("D07", "P3", "笔记本电脑使用满3年的，员工可申请更换")])
+        assert final is None and f"type={rtype} 时 basis 必填" in problems(obs)
+
+
+def test_rule2_basis_must_be_verbatim(runner):
+    read(runner, "D06", "D07")
+    obs, final = finish(runner, citations=[("D07", "P3", "笔记本电脑使用满3年的，员工可申请更换")],
+                        conflict_check=cc([("D06", "4年", "未说明"), ("D07", "3年", "未说明")],
+                                          [(("D06", "D07"), "superseded", ("D07", "P1", "2024版完全取代2022版的所有规定"))]))
+    assert final is None and "basis" in problems(obs) and "逐字" in problems(obs)
+
+
+def test_rule2_basis_must_come_from_the_pair(runner):
+    read(runner, "D06", "D07", "D03")
+    obs, final = finish(runner, citations=[("D07", "P3", "笔记本电脑使用满3年的，员工可申请更换")],
+                        conflict_check=cc([("D06", "4年", "未说明"), ("D07", "3年", "未说明"), ("D03", "与问题无关", "未说明")],
+                                          [(("D06", "D07"), "superseded", D03_P1)]))
+    assert final is None and "basis 必须来自这两份文档之一" in problems(obs)
+
+
+def test_superseded_with_valid_basis_accepted(runner):
+    read(runner, "D06", "D07")
+    _, final = finish(runner, citations=[("D07", "P3", "笔记本电脑使用满3年的，员工可申请更换")],
+                      conflict_check=cc([("D06", "4年", "未说明"), ("D07", "3年", "未说明")],
+                                        [(("D06", "D07"), "superseded", ("D07", "P1", "《办公设备申领规定（2022版）》同时废止"))]))
+    assert final is not None
+
+
+def test_rule3_scope_split_needs_a_scope_quote(runner):
+    read(runner, "D01", "D02")
+    obs, final = finish(runner, citations=[D01_P2, D02_P2],
+                        conflict_check=cc([("D01", "30天", "未说明"), ("D02", "15天", "未说明")],
+                                          [(("D01", "D02"), "scope_split", ("D02", "P1", "本指引用于说明员工在报销系统中提交费用报销的操作步骤"))]))
+    assert final is None and "scope_quote 不能都是“未说明”" in problems(obs)
+
+
+def test_rule3_scope_quote_must_be_verbatim(runner):
+    read(runner, "D05")
+    obs, final = finish(runner, citations=[("D05", "P2", "差旅费用应在出差结束之日起10天内提交报销申请")],
+                        conflict_check=cc([("D05", "10天", "适用于所有出差人员")]))
+    assert final is None and "scope_quote 不是该文档原文" in problems(obs)
+
+
+def test_rule3_scope_quote_may_come_from_scope_field_or_paragraph(runner):
+    read(runner, "D01", "D05")
+    for scope_quote in ("差旅费用报销", "本规定适用于员工因公出差产生的交通、住宿及出差补助等差旅费用的报销"):
+        _, final = finish(runner, citations=[D01_P2, ("D05", "P3", "本规定关于差旅费用报销期限的条款优先于公司通用报销规定执行")],
+                          conflict_check=cc([("D01", "30天", "未说明"), ("D05", "差旅10天", scope_quote)],
+                                            [(("D01", "D05"), "scope_split",
+                                              ("D05", "P3", "本规定关于差旅费用报销期限的条款优先于公司通用报销规定执行"))]))
+        assert final is not None, scope_quote
+
+
+def test_rule4_true_conflict_forbids_answered(runner):
+    read(runner, "D01", "D02")
+    obs, final = finish(runner, status="answered", citations=[D01_P2, D02_P2],
+                        conflict_check=cc([("D01", "30天", "未说明"), ("D02", "15天", "未说明")],
+                                          [(("D01", "D02"), "true_conflict", None)]))
+    assert final is None and "status 必须是 conflict_need_confirmation" in problems(obs)
+
+
+def test_relation_type_and_docs_validated(runner):
+    read(runner, "D01", "D02")
+    obs, _ = finish(runner, status="conflict_need_confirmation", citations=[D01_P2, D02_P2],
+                    conflict_check=cc([("D01", "30天", "未说明"), ("D02", "15天", "未说明")],
+                                      [(("D01", "D01"), "true_conflict", None), (("D01", "D02"), "maybe", None)]))
+    text = problems(obs)
+    assert "两个不同的文档 ID" in text and "type 必须是" in text
+
+
+def test_consistent_label_cannot_be_checked_semantically(runner):
+    # 已知限制：不同结论被标为 consistent 时程序无法发现（需人工审核 trace）
+    read(runner, "D01", "D02")
+    _, final = finish(runner, citations=[D01_P2, D02_P2],
+                      conflict_check=cc([("D01", "30天", "未说明"), ("D02", "15天", "未说明")],
+                                        [(("D01", "D02"), "consistent", None)]))
+    assert final is not None
 
 
 @pytest.mark.parametrize("status", ["out_of_scope", "need_clarification", "failed"])

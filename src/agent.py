@@ -48,13 +48,22 @@ d. 不得只采用其中一份文档而忽略另一份的不同说法；不得�
 
 结束：最后必须调用 finish。status 取值：
 answered（有依据地回答）、conflict_need_confirmation（真冲突需用户确认，至少引用 2 份不同文档）、need_clarification（问题指代不清，需用户澄清）、out_of_scope（资料库中没有依据）、failed（工具故障等原因无法完成）。
-answer 中写清结论，并注明依据的文档 ID 和版本日期。"""
+answer 中写清结论，并注明依据的文档 ID 和版本日期。
+
+finish 的 conflict_check（必填，会被程序校验）：
+- claims：本次用 read_doc 读过的每一份文档都要列出：doc_id；claim 写该文档对本问题的结论（与本问题无关时写“与问题无关”）；scope_quote 写该文档声明适用范围的原文（逐字复制），没有则写“未说明”。
+- relations：claims 中 claim 不是“与问题无关”的文档，两两各写一条关系：docs（两个文档 ID）、type、basis。
+  type 取值：consistent（结论一致）、scope_split（范围分工）、superseded（已被替代或废止）、priority（原文写明优先适用）、true_conflict（真冲突）。
+  scope_split / superseded / priority 必须给出 basis：说明依据的那段原文（doc_id、paragraph_id、逐字 quote），且来自这两份文档之一；scope_split 时两份文档的 scope_quote 不能都是“未说明”。consistent / true_conflict 的 basis 可为 null。
+- 两份文档结论不同、又找不到写明范围、优先或替代关系的原文时，type 只能是 true_conflict；存在 true_conflict 时 status 必须是 conflict_need_confirmation。
+- 没有读过任何文档时，claims 和 relations 都为空列表。"""
 
 NO_TOOL_REMINDER = "[系统提示] 你没有调用任何工具。请通过工具行动；要结束本轮必须调用 finish 并给出结构化结果。"
 
 
 def _result(status: str, reason: str, steps: int, gaps: list[str], answer: str = "") -> dict:
-    return {"status": status, "answer": answer, "citations": [], "gaps": gaps, "reason": reason, "steps_used": steps}
+    return {"status": status, "answer": answer, "citations": [], "gaps": gaps, "conflict_check": None,
+            "reason": reason, "steps_used": steps}
 
 
 def run_agent(question: str, llm, runner: ToolRunner, history: list[dict] | None = None,

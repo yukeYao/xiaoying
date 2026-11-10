@@ -11,7 +11,7 @@
 | step | 动作 | 参数 | 决策依据 (reason) | 返回摘要 | 下一步 |
 |---|---|---|---|---|---|
 | 1 | ask_user | {"question": "请问您想报销的是哪类费用（如差旅、日常费用）？"} | 问题中的“这个”指代不清 | 非交互模式，提示模型调用 finish | finish |
-| 2 | finish | {"status": "need_clarification", "answer": "您的问题“这个能报吗”没有说明具体费用，请补充是哪类费用。", "gaps": [], "citations": []} | 非交互模式，需用户澄清 | 校验通过，结束 | 结束（need_clarification） |
+| 2 | finish | {"status": "need_clarification", "answer": "您的问题“这个能报吗”没有说明具体费用，请补充是哪类费用。", "gaps": [], "citations": [], "conflict_check": {"claims": [], "relations": []}} | 非交互模式，需用户澄清 | 校验通过，结束 | 结束（need_clarification） |
 
 ## 结果
 
@@ -23,3 +23,4 @@
   - （无）
 - gaps：
   - （无）
+- conflict_check：

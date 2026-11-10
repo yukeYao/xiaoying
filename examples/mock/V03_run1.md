@@ -12,7 +12,7 @@
 |---|---|---|---|---|---|
 | 1 | search_docs | {"query": "报销期限", "top_k": 5} | 检索报销期限 | 命中 5 条：D01/P3(6.372)，D05/P3(5.239)，D05/P2(4.139)，D01/P2(3.453)，D10/P1(2.154) | read_doc |
 | 2 | read_doc | {"doc_id": "D01"} | 只命中 D01，读取原文确认 | D01《财务报销管理办法》版本 2023-03-01，全文 P1,P2,P3,P4,P5 | finish |
-| 3 | finish | {"status": "answered", "answer": "费用发生之日起20天内提交报销申请。依据 D01《财务报销管理办法》（2023-03-01）第二条。", "gaps": [], "citations": [{"doc_id": "D01", "paragraph_id": "P2", "quote": "员工应在费用发生之日起20天内提交报销申请"}]} | 信息已足够，结束 | 校验通过，结束 | 结束（answered） |
+| 3 | finish | {"status": "answered", "answer": "费用发生之日起20天内提交报销申请。依据 D01《财务报销管理办法》（2023-03-01）第二条。", "gaps": [], "citations": [{"doc_id": "D01", "paragraph_id": "P2", "quote": "员工应在费用发生之日起20天内提交报销申请"}], "conflict_check": {"claims": [{"doc_id": "D01", "claim": "费用发生之日起20天内提交", "scope_quote": "未说明"}], "relations": []}} | 信息已足够，结束 | 校验通过，结束 | 结束（answered） |
 
 ## 结果
 
@@ -24,3 +24,5 @@
   - D01/P2：「员工应在费用发生之日起20天内提交报销申请」
 - gaps：
   - （无）
+- conflict_check：
+  - claim D01：费用发生之日起20天内提交（适用范围：未说明）

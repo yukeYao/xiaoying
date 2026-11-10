@@ -15,7 +15,7 @@
 | 3 | read_doc | {"doc_id": "D02"} | 读取 D02 全文查找适用范围或优先级 | D02《员工费用报销操作指引》版本 2024-06-15，全文 P1,P2,P3,P4 | search_docs |
 | 4 | search_docs | {"query": "报销 适用范围 优先", "top_k": 5} | 两份文档都未写适用范围和优先级，补充检索是否有其他说明 | 命中 5 条：D01/P3(5.499)，D05/P3(4.458)，D02/P2(4.208)，D08/P2(2.581)，D02/P1(1.802) | ask_user |
 | 5 | ask_user | {"question": "D01 规定 30 天、D02 规定 15 天，请问您适用哪份制度？"} | 冲突无法依据文档判定，请用户确认 | 非交互模式，提示模型调用 finish | finish |
-| 6 | finish | {"status": "conflict_need_confirmation", "answer": "资料存在冲突：D01《财务报销管理办法》（2023-03-01）规定30天内，D02《员工费用报销操作指引》（2024-06-15）规定15天内，两份文档均未写适用范围或优先级，不能仅凭版本日期判定。请确认您适用哪份制度。", "gaps": ["D01 与 D02 均未说明适用范围和优先级"], "citations": [{"doc_id": "D01", "paragraph_id": "P2", "quote": "员工应在费用发生之日起30天内提交报销申请"}, {"doc_id": "D02", "paragraph_id": "P2", "quote": "员工须在费用发生后15天内通过报销系统提交报销单"}]} | 冲突无法判定，请用户确认 | 校验通过，结束 | 结束（conflict_need_confirmation） |
+| 6 | finish | {"status": "conflict_need_confirmation", "answer": "资料存在冲突：D01《财务报销管理办法》（2023-03-01）规定30天内，D02《员工费用报销操作指引》（2024-06-15）规定15天内，两份文档均未写适用范围或优先级，不能仅凭版本日期判定。请确认您适用哪份制度。", "gaps": ["D01 与 D02 均未说明适用范围和优先级"], "citations": [{"doc_id": "D01", "paragraph_id": "P2", "quote": "员工应在费用发生之日起30天内提交报销申请"}, {"doc_id": "D02", "paragraph_id": "P2", "quote": "员工须在费用发生后15天内通过报销系统提交报销单"}], "conflict_check": {"claims": [{"doc_id": "D01", "claim": "费用发生之日起30天内提交", "scope_quote": "未说明"}, {"doc_id": "D02", "claim": "费用发生后15天内提交", "scope_quote": "未说明"}], "relations": [{"docs": ["D01", "D02"], "type": "true_conflict", "basis": null}]}} | 冲突无法判定，请用户确认 | 校验通过，结束 | 结束（conflict_need_confirmation） |
 
 ## 结果
 
@@ -28,3 +28,7 @@
   - D02/P2：「员工须在费用发生后15天内通过报销系统提交报销单」
 - gaps：
   - D01 与 D02 均未说明适用范围和优先级
+- conflict_check：
+  - claim D01：费用发生之日起30天内提交（适用范围：未说明）
+  - claim D02：费用发生后15天内提交（适用范围：未说明）
+  - relation D01–D02：true_conflict

@@ -86,4 +86,12 @@ class Tracer:
                 f"- steps_used：{r.get('steps_used')}", f"- answer：{r.get('answer', '')}", "- citations："]
         out += [f"  - {c.get('doc_id')}/{c.get('paragraph_id')}：「{c.get('quote')}」" for c in r.get("citations", [])] or ["  - （无）"]
         out += ["- gaps："] + ([f"  - {g}" for g in r.get("gaps", [])] or ["  - （无）"])
+        cc = r.get("conflict_check")
+        if cc:
+            out += ["- conflict_check："]
+            out += [f"  - claim {c.get('doc_id')}：{c.get('claim')}（适用范围：{c.get('scope_quote')}）" for c in cc.get("claims", [])]
+            for rel in cc.get("relations", []):
+                b = rel.get("basis")
+                basis = f"，依据 {b.get('doc_id')}/{b.get('paragraph_id')}「{b.get('quote')}」" if isinstance(b, dict) else ""
+                out.append(f"  - relation {'–'.join(rel.get('docs', []))}：{rel.get('type')}{basis}")
         return "\n".join(out) + "\n"

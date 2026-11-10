@@ -11,7 +11,7 @@
 | 1 | 方案 | 2026-11-10 17:34 | 17:51 | 约 17 分钟 | 根据提交时间推算：开始时间由我提供；结束取阶段 1 审核补录时间 17:51 |
 | 2 | 数据集 + 检索工具 + 确定性测试 | 17:51 | 18:39 | 约 48 分钟 | 根据提交时间推算：开始取阶段 1 补录时间；结束取提交 ce4500f |
 | 3 | Agent 循环 + 模型接入 + Mock + 步数上限 + 故障注入 + 引用校验 | 18:39 | 19:39 | 约 60 分钟 | 根据提交时间推算：开始取 ce4500f；结束取提交 1e03d6a；含推送 GitHub 和 smoke 测试（7760cd2 19:22） |
-| 4 | CLI + Trace + 真实模型跑用例 | 19:39 | 进行中 | — | 根据提交时间推算：开始取 1e03d6a；已提交 6b1145f（19:51）、f09fed6（19:56）；20:00 起实时记录。第 2 步（v2）结束 20:08（实时记录，`date`；提交 0e92d41）。诊断 A（v2-strong）20:19–20:28（实时记录）。第 3 步（v3 / v3-strong）20:31–20:42（实时记录）。计划 C0 20:48–20:50（实时记录） |
+| 4 | CLI + Trace + 真实模型跑用例 | 19:39 | 进行中 | — | 根据提交时间推算：开始取 1e03d6a；已提交 6b1145f（19:51）、f09fed6（19:56）；20:00 起实时记录。第 2 步（v2）结束 20:08（实时记录，`date`；提交 0e92d41）。诊断 A（v2-strong）20:19–20:28（实时记录）。第 3 步（v3 / v3-strong）20:31–20:42（实时记录）。计划 C0 20:48–20:50（实时记录）。计划 C1（v4 / v4-strong）20:55–21:12（实时记录） |
 | — | `core-complete` tag |  |  |  |  |
 | 5 | 文档 01–03、README，04/05 模板 |  |  |  |  |
 | 延伸 |  |  |  |  |  |
@@ -420,3 +420,67 @@
 - gpt-4.1 run2 失败：读了 D05、D01 全文（各读两次），finish 理由为"D05 为最新且适用全部费用报销的规定"，answer 写"根据公司最新的《费用报销补充规定》（2024-09-01版）……该时限为当前有效规定"，只引用 D05——即按版本日期选择，正是 prompt 明确禁止的情形；answer 末尾还有文档以外的建议（"建议及时与财务部联系"）。这与 v3-strong 中 C03/C04 的失败形态一致，属于计划 C1 要处理的问题。
 
 用时：本步 20:48 开始，20:50 结束（实时记录）。
+
+---
+
+## 2026-11-10 计划 C1：finish 增加结构化 conflict_check（v4 / v4-strong）
+
+**原方案**：计划 C（我在 v2-strong 诊断后提出）：v3 中 C03–C06 仍失败时，讨论在 finish 中增加结构化 conflict_check。我给出了 claims / relations 字段和 5 条校验规则的设计。
+
+**最终决定及改动内容**（我决定）：
+- C0 确认；variant_b 的 D05 第三段（住宿费标准）保留不改，在 README 中注明（README 已有此说明）。
+- finish 增加必填字段 conflict_check：
+  - claims：本次用 read_doc 读过的每一份文档都要列出（doc_id、claim、scope_quote；无关写"与问题无关"，没有适用范围原文填"未说明"）。
+  - relations：**修改**为——claims 中所有 claim 不是"与问题无关"的文档，必须两两都有一条 relation（不再由模型判断"结论是否不同"再决定写不写）；校验检查是否有缺失的文档对。字段 docs、type（consistent / scope_split / superseded / priority / true_conflict）、basis。
+  - 校验：claims 必须覆盖本次读过的全部文档；scope_split / superseded / priority 必须有通过逐字校验、来自这两份文档之一的 basis；scope_split 时两份文档的 scope_quote 不能都是"未说明"，非"未说明"的 scope_quote 须逐字存在；存在 true_conflict 时 status 必须是 conflict_need_confirmation。
+  - 更新工具 schema、prompt、Mock 序列（新增"先错误地标 scope_split 被拒，再修正为 true_conflict"）和测试。
+- 两个模型跑全部用例，各 --repeat 3，tag 为 v4、v4-strong。
+
+**理由**：未说明。
+
+**已知限制**（我要求记录，并写入后续文档）：程序无法判断 claim 在语义上是否一致，模型把不同结论标为 consistent 时校验拦不住，需靠人工审核 trace 发现。
+
+**Claude Code 实现说明**：
+- 非"未说明"的 scope_quote 对所有 claims 都做逐字校验（不仅限于 scope_split 涉及的文档），可匹配文档的 scope 元数据字段或任一正文段落。
+- 引用逐字校验抽成 `check_quote`，citations 与 basis 共用（basis 同样要求至少 8 字、段落在本次 read_doc 中读过）。
+- 最终输出和 trace 中增加 conflict_check；未调用 finish 时（incomplete / llm_error）为 null。
+- 测试：test_finish.py 的 finish 辅助函数在不传 conflict_check 时自动为读过的文档生成"与问题无关"的 claims，使原有引用校验测试只关注引用；conflict_check 规则新增 16 个测试，含"不同结论标为 consistent 仍会通过"的限制测试。test_agent.py 按新字段调整 5 处，新增 SCOPE_SPLIT_WRONG 序列测试。共 139 个通过，Mock 16/16。
+
+**验证方式与结果**（逐用例通过次数；V05 的 v3 / v3-strong 列取 dataC0 结果）：
+
+| 用例 | v3（4o-mini） | v4（4o-mini） | v3-strong（4.1） | v4-strong（4.1） |
+|---|---|---|---|---|
+| C01 | 3/3 | 3/3 | 3/3 | 1/3 |
+| C02 | 3/3 | 3/3 | 3/3 | 1/3 |
+| C03 | 0/3 | 3/3 | 0/3 | 2/3 |
+| C04 | 0/3 | 3/3 | 0/3 | 2/3 |
+| C05 | 3/3 | 2/3 | 3/3 | 1/3 |
+| C06 | 0/3 | 0/3 | 3/3 | 3/3 |
+| C07 | 2/3 | 3/3 | 3/3 | 2/3 |
+| C08 | 3/3 | 3/3 | 3/3 | 0/3 |
+| C09 | 3/3 | 3/3 | 3/3 | 3/3 |
+| C10 | 3/3 | 3/3 | 3/3 | 0/3 |
+| C11 | 3/3 | 3/3 | 3/3 | 1/3 |
+| C12 | 3/3 | 3/3 | 3/3 | 3/3 |
+| C13 | 3/3 | 3/3 | 0/3 | 1/3 |
+| C14 | 3/3 | 1/3 | 0/3 | 0/3 |
+| V03 | 3/3 | 2/3 | 3/3 | 3/3 |
+| V05 | 3/3 | 3/3 | 2/3 | 1/3 |
+| 合计 | 38/48 | **41/48** | 35/48 | **24/48** |
+
+finish 被拒次数合计：v4 13 次、v4-strong 8 次；incomplete：v4 3 次（全部是 C12，按设计）、v4-strong 25 次。
+
+**Claude Code 从 trace 看到的情况（尚待我判断）**：
+- gpt-4o-mini 的 C03、C04 由 0/3 变为 3/3，起作用的是规则 4：6 次运行都先以 answered 提交、同时在 relations 中写了 true_conflict，被拒后改为 conflict_need_confirmation。即模型在结构化字段里能识别冲突，但写 status 时仍倾向 answered，校验把二者对齐了。不过 C03 的 3 次把 D05 与 D01、D02 也都标成 true_conflict（D05 P3 写明优先于通用规定，应为 priority / scope_split），状态正确，但冲突说明多列了 D05。
+- gpt-4.1 的 C03、C04 完成的 4 次都标得完全正确：D05 与 D01、D02 为 scope_split，D01 与 D02 为 true_conflict。
+- gpt-4o-mini 新出现的 finish 被拒，主要来自规则 1：C13、C14 共 6 次漏写读过的 D03 / D09，被拒后补上。
+- gpt-4.1 的 25 次 incomplete：过度核实循环再次出现，且比 v3 严重。例如 C01 读了无关的 D06 后，连续 4 次重读 D03"确认适用范围"，再检索"年假管理制度 适用范围"；C08 同样反复重读 D04、D03 并检索"适用范围"，3 次都撞到步数上限。重复调用提示（"与第 N 步调用相同，结果未变"）出现在 observation 中，但模型没有停止。推测：conflict_check 要求每份读过的文档都填 scope_quote，使 gpt-4.1 认为必须找到"适用范围"原文。C10 中它在检索不可用时逐份读取 D01–D07 寻找年假规定，也撞到上限。
+- 仍失败的其他用例：
+  - C06（gpt-4o-mini 0/3）：3 次都把 D06–D07 标成 true_conflict，未用 D07 P1 的废止说明，仍判断为模型能力问题。
+  - C05（gpt-4o-mini run1）：把 D05–D02 标成 true_conflict（D05 P3 写明优先），被规则 4 强制改为冲突状态。
+  - C14（gpt-4o-mini 2 次）：need_clarification，问"您使用的是剪影Pro 的哪个版本"，仍把报表导出当作 D09 的产品问题。
+  - C13（gpt-4.1 run1）：answered，结论"年假未休完不能折现"，是从"逾期作废"推出的，原文没有，gaps 为空。
+  - V03（gpt-4o-mini run1）：status=failed、reason=llm_error（APITimeoutError，API 层重试 1 次后仍超时），属于接口问题，与 Agent 逻辑无关。
+- **把不同结论标成 consistent 的情况：没有出现**（v4、v4-strong 的 96 次运行中没有任何 relation 标为 consistent）。但出现了一次**同类限制**：gpt-4.1 的 V05 run1 把 D05–D01 标成 priority，basis 是 D05 P1"本规定适用于公司全部费用报销。"——这句是适用范围说明，不是优先级说明。basis 逐字存在且来自其中一份文档，校验通过，最终 answered 回答 10 天，finish 理由为"D05 为最新且适用范围覆盖全部费用报销，应优先适用"。程序同样无法判断 basis 的语义是否真的支持所标的关系类型。该运行中模型还先提交过 status="priority"（被枚举校验拒绝）。
+
+用时：本步 20:55 开始，21:12 运行与分析结束（实时记录）。
