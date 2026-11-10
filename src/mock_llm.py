@@ -8,6 +8,7 @@ import json
 
 class ScriptedLLM:
     name = "mock"
+    mode = "mock"
 
     def __init__(self, script: list[dict]):
         self.script = list(script)

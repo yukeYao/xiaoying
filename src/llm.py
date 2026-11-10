@@ -22,6 +22,8 @@ RETRYABLE_ERRORS = (openai.APITimeoutError, openai.APIConnectionError, openai.Ra
 
 
 class OpenAIChat:
+    mode = "real"
+
     def __init__(self, model: str | None = None, api_key: str | None = None, base_url: str | None = None,
                  temperature: float = 0.0, timeout: float = 60, retries: int = 1, retry_wait: float = 2.0):
         load_dotenv(ROOT / ".env")

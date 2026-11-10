@@ -178,3 +178,45 @@
 - 测试中构造 openai 异常需要底层 HTTP 库：openai 3.49 使用 `httpx2`（不再依赖 `httpx`），测试优先导入 `httpx2`，否则回退到 `httpx`。
 
 **验证方式**：`pytest` 共 105 个测试全部通过（新增 tests/test_llm.py：3 类临时错误重试 1 次后成功、连续 2 次失败抛出、401 不重试、SDK 自动重试已关闭、持续失败在 agent 中变为 llm_error；read_doc 部分缺失；替换版 D05 适用范围；C10 answered 路径）。
+
+---
+
+## 2026-11-10 阶段 3 审核确认与阶段 4
+
+**原方案**：Claude Code 在阶段 3 审核修改报告中提出三点实现补充（C10 去掉 expect_gaps、替换旧测试、使用 httpx2），并报告 `git add -A` 误提交了一份 Mock trace。
+
+**最终决定及改动内容**（我决定）：
+1. 同意 C10 去掉 expect_gaps、替换旧测试、使用 httpx2。
+2. 最终输出增加 `mode`（mock / real）、`model`、`trace_file` 字段；citations 每条的 `title`、`version_date` 由程序根据 doc_id 补充，不由模型生成。
+3. requirements.txt 固定所有依赖的确切版本（以当前 venv 实际安装版本为准）。
+4. CLAUDE.md 增加规则：提交时只 add 明确要提交的文件，不使用 `git add -A`。
+5. 阶段 4：`scripts/run_eval.py`（--mock / --real、--repeat N、--cases；trace 分别存 examples/real/ 与 examples/mock/，文件名含用例 ID 和第几次运行；结果写入 eval_results_real.md / eval_results_mock.md，列出期望状态、每次实际状态、通过次数、步数、引用校验是否通过、finish 被拒次数；C10 为 failed 时 gaps 必须非空；末尾汇总总通过率和失败用例）；用脚本重新生成全部 Mock trace；真实模型 --repeat 3；CLI 增加交互多轮模式。
+6. 真实模型结果不符合预期时，不修改 system prompt、数据、测试或期望，先停下汇报。
+
+**理由**：未说明。
+
+**Claude Code 实现时的补充（尚待我审核）**：
+- C10 的条件检查写成用例数据字段 `gaps_required_if_status: ["failed"]`，run_eval 按字段检查，而不是在脚本里写死 C10。
+- 模型在 citation 中自带的 title / version_date 会被丢弃，以文档库为准（有测试）。
+- `trace_file` 指向 Markdown trace（同名 .jsonl 在同一目录）。
+- run_eval 全量运行前会清空对应 trace 目录，避免旧文件残留；`--cases` 部分运行不清空，结果写入 `*_subset.md`。
+- 报告中增加"路径"列（如 `S→R:D01→R:D02→A→F`），用于记录 C10 等用例实际走的路径。
+- `--chat` 不能与 `--mock` 同时使用（脚本化 Mock 无法应对任意输入）；交互模式下对话历史只保留每轮的问题和 answer 文本。
+- requirements.txt 包含 `colorama`（pytest 在 Windows 上的依赖）等全部间接依赖。
+
+**验证方式**：`pytest` 115 个测试全部通过；`run_eval.py --mock` 16/16 通过，旧的 `examples/mock/C03.*` 已被新的 `C03_run1.*` 取代。真实模型结果见下一条记录。
+
+---
+
+## 2026-11-10 阶段 4：真实模型首次全量运行（未达预期，待讨论）
+
+**运行**：`scripts/run_eval.py --real --repeat 3`，模型 gpt-4o-mini，temperature=0。结果见 `examples/eval_results_real.md`，trace 在 `examples/real/`。按 CLAUDE.md 规则，未修改 system prompt、数据、测试或期望。
+
+**结果**：总通过率 34/48（71%），全部通过的用例 9/16。失败用例（失败次数）：C05（3/3）、C06（3/3）、C10（2/3）、C14（2/3）、V03（2/3）、C03（1/3）、C04（1/3）。
+
+**Claude Code 从 trace 看到的走偏位置与推测原因（尚待我判断）**：
+- C05、C06：都只用 `paragraph_ids` 读了命中段落，没有读全文，因此没看到 D05 P3 的优先级条款、D07 P1 的废止说明，把可查证的表面冲突当成真冲突。system prompt 第 4 条要求"必须读取这些文档全文"，模型没有遵守。
+- V03：替换版 D05 在上一轮审核中改为"适用于公司全部费用报销"，此后 D05（10 天）与 D01（20 天）在替换版中也构成冲突；V03 的期望（answered，20 天）是在该数据修改之前定的。模型 3 次都读到了 D05，其中 2 次报冲突。可能是期望与数据不一致，而不是模型错误。
+- C10：search_docs 一直失败时，模型反复换关键词重试，没有改用 read_doc 或及时 finish，2/3 次撞到 max_steps 返回 incomplete（步数上限按设计生效）。错误信息没有列出可用文档 ID，模型也无从直接 read_doc。
+- C14：2/3 次把资料外问题当成"指代不清"，返回 need_clarification（问"哪个系统"）。第 3 次虽判为 out_of_scope（计为通过），但 answer 把 D09（视频导出、存储空间）的建议套用到报表导出超时上，引用逐字正确但不支持回答——这是逐字校验无法发现的问题，评测脚本也没有检查出来。
+- C03、C04 各 1 次：读到 D05 后把问题理解为"一般报销还是差旅报销"，返回 need_clarification；通过的运行中也常把 D05 作为第三种说法列出，同样没有读全文核实 D05 的适用范围。

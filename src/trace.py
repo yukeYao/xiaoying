@@ -62,7 +62,8 @@ class Tracer:
     def to_markdown(self) -> str:
         m, r = self.meta, self.result or {}
         source = m.get("source", "")
-        label = ("**MOCK 运行**：脚本化 Mock 模型，只验证流程，不代表真实模型的决策效果。" if source == "mock"
+        is_mock = m.get("mode", "mock" if source == "mock" else "real") == "mock"
+        label = ("**MOCK 运行**：脚本化 Mock 模型，只验证流程，不代表真实模型的决策效果。" if is_mock
                  else f"**真实模型运行**：`{source}`")
         out = [f"# Trace：{m.get('case_id', '')}", "", label, ""]
         for k in ("question", "history", "data_dir", "fail_tool", "fail_times", "max_steps"):

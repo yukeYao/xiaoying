@@ -7,6 +7,7 @@
 - 不提交任何真实密钥；.env 必须在 .gitignore 中。
 - docs/04-ai-usage.md 和 docs/05-retrospective.md 只生成模板，内容由我本人填写。
 - 代码保持简洁，避免过度工程化。
+- 提交时只 git add 明确要提交的文件，不使用 git add -A。
 
 # 决策日志
 - 维护 docs/decision-log.md。每当我确认、否决或修改你的方案，或者我们在调试中发现并解决了问题，追加一条记录：
@@ -40,5 +41,7 @@ CLI（下表为 Windows 写法；macOS / Linux 把 `.venv/Scripts/python` 换成
 | 按用例运行（Mock，只验证流程） | `.venv/Scripts/python -m src.cli --case C03 --mock` |
 | 替换数据 / 步数 / 故障注入 | `--data-dir data/variant/docs`、`--max-steps 5`、`--fail-tool search_docs --fail-times 1` |
 | 保存 trace | `--trace-dir <目录>` |
-
-（端到端评测 run_eval.py 待阶段 4 补充）
+| 交互多轮（真实模型） | `.venv/Scripts/python -m src.cli --chat` |
+| 端到端评测（Mock） | `.venv/Scripts/python scripts/run_eval.py --mock` |
+| 端到端评测（真实模型） | `.venv/Scripts/python scripts/run_eval.py --real --repeat 3` |
+| 只跑部分用例 | `.venv/Scripts/python scripts/run_eval.py --real --cases C03 C05` |
