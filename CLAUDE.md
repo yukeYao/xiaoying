@@ -30,4 +30,15 @@
 
 Windows 终端输出中文乱码时，先设置 `PYTHONIOENCODING=utf-8`（Git Bash：`export PYTHONIOENCODING=utf-8`；PowerShell：`$env:PYTHONIOENCODING="utf-8"`）。
 
-（运行 CLI、端到端评测 run_eval.py 待阶段 3/4 补充）
+CLI（下表为 Windows 写法；macOS / Linux 把 `.venv/Scripts/python` 换成 `.venv/bin/python`）：
+
+| 用途 | 命令 |
+|---|---|
+| 真实模型 smoke 测试 | `.venv/Scripts/python scripts/smoke_llm.py` |
+| 单个问题（真实模型） | `.venv/Scripts/python -m src.cli "报销期限多久？"` |
+| 按用例运行（真实模型） | `.venv/Scripts/python -m src.cli --case C03` |
+| 按用例运行（Mock，只验证流程） | `.venv/Scripts/python -m src.cli --case C03 --mock` |
+| 替换数据 / 步数 / 故障注入 | `--data-dir data/variant/docs`、`--max-steps 5`、`--fail-tool search_docs --fail-times 1` |
+| 保存 trace | `--trace-dir <目录>` |
+
+（端到端评测 run_eval.py 待阶段 4 补充）

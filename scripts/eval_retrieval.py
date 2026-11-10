@@ -139,7 +139,7 @@ def main():
 
     text = "\n".join(lines) + "\n"
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
-    Path(args.out).write_text(text, encoding="utf-8")
+    Path(args.out).write_text(text, encoding="utf-8", newline="\n")
     print(text)
 
 

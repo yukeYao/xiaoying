@@ -131,3 +131,23 @@
 **理由**：未说明。
 
 **验证方式**：运行 3 次，模型 `gpt-4o-mini`（返回 `gpt-4o-mini-2024-07-18`），均返回 `search_docs` tool call，`finish_reason = tool_calls`，耗时 3.73s / 2.57s / 4.13s，temperature=0 下三次参数相同，无错误。
+
+---
+
+## 2026-11-10 阶段 3 第二步：Agent 循环、Mock、引用校验、故障注入、trace
+
+**原方案**：阶段 1 方案 + 阶段 1 审核修改（取舍 B/C/D/F/G、无工具调用处理、--data-dir 等）+ 我在阶段 3 开始时给出的实现清单。按清单实现，未改变已确认的规则。
+
+**最终决定及改动内容**（Claude Code 实现；以下几点是实现中由 Claude Code 自行决定的细节，尚待我审核）：
+1. CLI 原计划在阶段 4，为了提供 `--fail-tool` / `--fail-times` / `--data-dir`，阶段 3 先实现了最小 CLI（`src/cli.py`：单问题或 `--case`，`--mock`、`--max-steps`、`--interactive`、`--trace-dir`）。多轮交互模式和批量评测仍留到阶段 4。
+2. 模型一次回复中包含多个工具调用时，逐个执行，每个算 1 步。
+3. 模型调用本身抛异常（网络、key 等）时，返回 `status=failed, reason=llm_error`，不重试。
+4. 故障注入只允许作用于 `search_docs`、`read_doc`。
+5. read_doc 请求中只要有一个段落不存在就整体报错，此次读取不登记任何段落。
+6. 用例期望 `expected_status` 用列表表示可接受的状态（C13 为 `out_of_scope` 或 `answered`，并要求 gaps 非空）。
+7. V05 的期望按阶段 1 方案写为 `conflict_need_confirmation`，但替换版 D05 仍写有适用范围（"本规定适用于员工因公出差产生的…差旅费用的报销"），模型依据适用范围回答 10 天也可能合理。已在 cases.jsonl 的 notes 中标注，期望待我确认。
+8. C10（search_docs 一直失败）期望 `failed`；模型若直接 read_doc 猜文档并有依据地回答，也属合理恢复，已在 notes 中说明。
+
+**理由**：未说明（上述细节为 Claude Code 实现时的选择，我尚未表态）。
+
+**验证方式**：`pytest` 共 92 个测试全部通过（新增 tests/test_finish.py 引用校验 / ask_user / 故障注入 / 参数错误，tests/test_agent.py Mock 用例流程 / 步数上限 / 无工具调用 / 错误引用纠正 / trace / CLI）。16 个用例的 Mock 脚本全部得到期望状态。尚未用真实模型跑用例（阶段 4）。
