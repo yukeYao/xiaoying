@@ -296,92 +296,9 @@
 
 **Claude Code 实现说明**：
 - 账户可用模型（models.list）包括 gpt-4.1、gpt-4o、gpt-5 / 5.x 系列、o3 等。选择 **gpt-4.1**：支持 temperature=0 与 tool calling，可保持与 gpt-4o-mini 相同的调用参数，只改变模型本身；gpt-5.x / o 系列推理模型多数不接受非默认 temperature，会同时改变采样设置。smoke 测试通过（返回 gpt-4.1-2025-04-14）。
--  和  增加  参数； 优先于 .env；也可用环境变量 （load_dotenv 不覆盖已存在的环境变量）。.env 未修改。
+- `scripts/run_eval.py` 和 `src/cli.py` 增加 `--model` 参数；`OpenAIChat(model=...)` 优先于 .env；也可用环境变量 `AGENT_MODEL=...`（load_dotenv 不覆盖已存在的环境变量）。.env 未修改。
 
-**验证方式与结果**：============================= test session starts =============================
-platform win32 -- Python 3.12.7, pytest-7.4.4, pluggy-1.0.0
-rootdir: D:\0Programs\0internship\xiaoying
-configfile: pytest.ini
-testpaths: tests
-plugins: anyio-4.2.0
-collected 0 items / 5 errors
-
-=================================== ERRORS ====================================
-____________________ ERROR collecting tests/test_agent.py _____________________
-ImportError while importing test module 'D:\0Programs\0internship\xiaoying\tests\test_agent.py'.
-Hint: make sure your test modules/packages have valid Python names.
-Traceback:
-D:\0ProgramFiles\Anaconda3\Lib\importlib\__init__.py:90: in import_module
-    return _bootstrap._gcd_import(name[level:], package, level)
-tests\test_agent.py:10: in <module>
-    from src.agent import NO_TOOL_REMINDER, run_agent
-src\agent.py:13: in <module>
-    from .tools import TOOL_SCHEMAS, ToolRunner, error
-src\tools.py:13: in <module>
-    from .retrieval import DEFAULT_SYNONYMS, BM25Index, expand_query, load_synonyms, make_tokenizer, tokenize
-src\retrieval.py:8: in <module>
-    import jieba
-E   ModuleNotFoundError: No module named 'jieba'
-____________________ ERROR collecting tests/test_finish.py ____________________
-ImportError while importing test module 'D:\0Programs\0internship\xiaoying\tests\test_finish.py'.
-Hint: make sure your test modules/packages have valid Python names.
-Traceback:
-D:\0ProgramFiles\Anaconda3\Lib\importlib\__init__.py:90: in import_module
-    return _bootstrap._gcd_import(name[level:], package, level)
-tests\test_finish.py:5: in <module>
-    from src.tools import KnowledgeBase, ToolRunner
-src\tools.py:13: in <module>
-    from .retrieval import DEFAULT_SYNONYMS, BM25Index, expand_query, load_synonyms, make_tokenizer, tokenize
-src\retrieval.py:8: in <module>
-    import jieba
-E   ModuleNotFoundError: No module named 'jieba'
-_____________________ ERROR collecting tests/test_llm.py ______________________
-ImportError while importing test module 'D:\0Programs\0internship\xiaoying\tests\test_llm.py'.
-Hint: make sure your test modules/packages have valid Python names.
-Traceback:
-D:\0ProgramFiles\Anaconda3\Lib\importlib\__init__.py:90: in import_module
-    return _bootstrap._gcd_import(name[level:], package, level)
-tests\test_llm.py:4: in <module>
-    import openai
-E   ModuleNotFoundError: No module named 'openai'
-__________________ ERROR collecting tests/test_retrieval.py ___________________
-ImportError while importing test module 'D:\0Programs\0internship\xiaoying\tests\test_retrieval.py'.
-Hint: make sure your test modules/packages have valid Python names.
-Traceback:
-D:\0ProgramFiles\Anaconda3\Lib\importlib\__init__.py:90: in import_module
-    return _bootstrap._gcd_import(name[level:], package, level)
-tests\test_retrieval.py:7: in <module>
-    from src.retrieval import (expand_query, load_synonyms, make_tokenizer, rank_doc_ids, recall_at_k,
-src\retrieval.py:8: in <module>
-    import jieba
-E   ModuleNotFoundError: No module named 'jieba'
-___________________ ERROR collecting tests/test_run_eval.py ___________________
-ImportError while importing test module 'D:\0Programs\0internship\xiaoying\tests\test_run_eval.py'.
-Hint: make sure your test modules/packages have valid Python names.
-Traceback:
-D:\0ProgramFiles\Anaconda3\Lib\importlib\__init__.py:90: in import_module
-    return _bootstrap._gcd_import(name[level:], package, level)
-tests\test_run_eval.py:7: in <module>
-    import run_eval  # noqa: E402
-scripts\run_eval.py:29: in <module>
-    from src.cli import load_cases, run_once  # noqa: E402
-src\cli.py:17: in <module>
-    from .agent import DEFAULT_MAX_STEPS, run_agent
-src\agent.py:13: in <module>
-    from .tools import TOOL_SCHEMAS, ToolRunner, error
-src\tools.py:13: in <module>
-    from .retrieval import DEFAULT_SYNONYMS, BM25Index, expand_query, load_synonyms, make_tokenizer, tokenize
-src\retrieval.py:8: in <module>
-    import jieba
-E   ModuleNotFoundError: No module named 'jieba'
-=========================== short test summary info ===========================
-ERROR tests/test_agent.py
-ERROR tests/test_finish.py
-ERROR tests/test_llm.py
-ERROR tests/test_retrieval.py
-ERROR tests/test_run_eval.py
-!!!!!!!!!!!!!!!!!!! Interrupted: 5 errors during collection !!!!!!!!!!!!!!!!!!!
-============================== 5 errors in 0.29s ============================== 117 个通过。（）：总通过率 **25/48**（v2 gpt-4o-mini 为 33/48）。
+**验证方式与结果**：`pytest` 117 个通过。`--real --model gpt-4.1 --repeat 3 --tag v2-strong`（`examples/eval_results_real_v2-strong.md`）：总通过率 **25/48**（v2 gpt-4o-mini 为 33/48）。
 
 | 用例 | v2（4o-mini） | v2-strong（4.1） |
 |---|---|---|
@@ -405,3 +322,5 @@ ERROR tests/test_run_eval.py
 - 结论（Claude Code 的判断）：换更强模型能解决"看到但不核对"（C05/C06），但解决不了"冲突时偏向较新版本"（C03/C04），还引入了过度核实导致的循环。C03/C04 需要第 3 步的冲突处理步骤或结构化 conflict_check。
 
 用时：本步 20:19 开始，20:28 结束（实时记录）。
+
+**记录事故（Claude Code）**：写入本条记录时，Claude Code 用了未加引号的 shell heredoc，正文中反引号包裹的内容被 shell 当作命令执行（尝试把 scripts/run_eval.py、src/cli.py、结果 md 当 shell 脚本运行，均在首行报错退出；还用系统 Python 运行了一次 pytest，因缺依赖在导入阶段失败），未修改任何项目文件，但本条记录的两处文字被替换为空或命令输出，并随提交 6d17fef 推送。已在后续提交中恢复原文。之后写入含反引号的文本改用带引号的 heredoc 或 Edit。
