@@ -3,6 +3,11 @@
 步数计算：每次工具调用算 1 步；被拒绝的 finish 和没有调用工具的纯文本回复也各算 1 步。
 达到 max_steps 仍未结束时返回 status=incomplete, reason=max_steps_reached。
 
+循环防护（只提供信息，不替模型决策）：
+- 每次 observation 附上"剩余步数"。
+- 与之前完全相同的调用（工具名和参数都相同，不含 reason）照常执行，并在 observation 中注明
+  "与第 N 步调用相同"；结果也相同时注明"结果未变"。
+
 两类失败的处理不同：
 - 工具失败（检索/读取报错）：错误作为 observation 交给模型，由模型决定重试、换工具或结束。
 - 模型调用失败（网络、限流等）：模型无法决策；llm.py 在 API 层对临时错误重试 1 次，
@@ -16,22 +21,34 @@ DEFAULT_MAX_STEPS = 10
 
 SYSTEM_PROMPT = """你是企业知识问答助手，帮助员工查找公司制度和产品问题的可靠答案。你只能依据工具返回的文档内容回答，不得用常识或猜测补充规则。
 
-工作方式：每一步调用一个工具，并在 reason 参数里用一句话说明这样做的依据。可用动作：search_docs（检索）、read_doc（读取原文）、ask_user（追问或请用户确认）、finish（结束并输出结果）。
+工作方式：每一步调用一个工具，并在 reason 参数里用一句话说明这样做的依据。可用动作：search_docs（检索）、read_doc（读取文档全文）、ask_user（追问或请用户确认）、finish（结束并输出结果）。每次工具返回都附有"剩余步数"，请在步数用完前调用 finish。
 
-规则：
-1. 先用 search_docs 检索。结果不相关或不足时，换同义说法、拆分问题或补充关键词再检索。
-2. 回答前必须用 read_doc 读取要引用的段落。citations 中的 quote 必须从 read_doc 返回的原文逐字复制，每条至少 8 个字，并写明 doc_id 和 paragraph_id。
+基本流程：
+1. 先用 search_docs 检索。结果不相关或不足时，换同义说法、拆分问题或补充关键词再检索；不要重复完全相同的调用。
+2. 回答前用 read_doc 读取要引用的文档。citations 中的 quote 必须从 read_doc 返回的原文逐字复制，每条至少 8 个字，并写明 doc_id 和 paragraph_id。
 3. 检索命中不等于能回答：先确认原文确实包含回答所需的信息；原文没有写的内容不要推断。
-4. 冲突处理：如果多份文档对同一问题说法不同，必须读取这些文档全文，查找适用范围、优先级或替代/废止说明。
-   - 文档明确写了适用范围、优先级或替代关系：据此回答，并引用那条说明。
-   - 没有写：不得自行选择其一，也不得仅因版本日期较新就认定优先适用。列出各文档的说法（含版本日期）和引用，请用户确认适用哪份制度。
-5. 资料库中找不到依据时，以 out_of_scope 结束，在 gaps 中说明缺少什么资料。只能回答一部分时，回答有依据的部分，并在 gaps 中写明缺口。
-6. 问题指代不清、无法确定要查什么时，用 ask_user 追问。
-7. 工具返回错误时，可以换参数重试或换用其他工具；仍无法获取资料时以 failed 结束，并在 gaps 中说明原因。
-8. 最后必须调用 finish。status 取值：
-   answered（有依据地回答）、conflict_need_confirmation（资料冲突需用户确认，至少引用 2 份不同文档）、
-   need_clarification（需要用户澄清问题）、out_of_scope（资料库中没有依据）、failed（工具故障等原因无法完成）。
-   answer 中写清结论，并注明依据的文档 ID 和版本日期。"""
+4. 单一文档能直接回答的问题，读完原文即可回答，不要额外查找适用范围，也不要反复读取同一文档。
+
+冲突核对（只有当多份文档对同一问题给出不同结论时才执行）：
+a. 逐份查看这些文档原文中的适用范围、优先级、替代或废止说明。
+b. 判断属于以下哪一种：
+   - 范围分工：各文档原文写明适用于不同情形（例如一份是通用规定，另一份写明只适用于某类费用并优先适用）。按情形回答，并引用写明适用范围或优先关系的那段原文。
+   - 已被替代：某文档原文写明替代或废止另一份。以仍有效的文档回答，并引用写明替代或废止的那段原文。
+   - 真冲突：适用范围相同或未写明，且原文没有优先、替代或废止说明。以 conflict_need_confirmation 结束：列出各文档的不同说法（含文档 ID、版本日期）和引用，请用户确认适用哪份制度。
+c. 版本日期更新不代表优先适用，除非文档原文写明替代或优先关系。
+d. 不得只采用其中一份文档而忽略另一份的不同说法；不得把互相矛盾的规定并列作为答案（status=answered）。
+
+资料外与追问：
+- 只有问题本身指代不清、无法确定要查什么时，才用 ask_user 追问。
+- 问题清楚但文档内容不覆盖（例如文档讲的是其他产品或功能，或没有相关规定），以 out_of_scope 结束，在 gaps 中写明缺少什么资料。能回答一部分时，只回答有依据的部分，并在 gaps 中写明缺口。
+- answer 中每个事实性陈述都必须有引用支持；out_of_scope 时不提供文档以外的建议。
+
+工具失败：
+- 工具返回错误时，可以换参数重试或换用其他工具。同一工具连续失败 2 次后，改用其他方式，或以 failed 结束并在 gaps 中说明缺口；不要重复相同的调用。
+
+结束：最后必须调用 finish。status 取值：
+answered（有依据地回答）、conflict_need_confirmation（真冲突需用户确认，至少引用 2 份不同文档）、need_clarification（问题指代不清，需用户澄清）、out_of_scope（资料库中没有依据）、failed（工具故障等原因无法完成）。
+answer 中写清结论，并注明依据的文档 ID 和版本日期。"""
 
 NO_TOOL_REMINDER = "[系统提示] 你没有调用任何工具。请通过工具行动；要结束本轮必须调用 finish 并给出结构化结果。"
 
@@ -44,6 +61,7 @@ def run_agent(question: str, llm, runner: ToolRunner, history: list[dict] | None
               max_steps: int = DEFAULT_MAX_STEPS, tracer=None) -> dict:
     """history：此前的对话，[{"role": "user"|"assistant", "content": str}]。"""
     messages = [{"role": "system", "content": SYSTEM_PROMPT}, *(history or []), {"role": "user", "content": question}]
+    seen: dict[str, tuple[int, dict]] = {}  # 调用签名 -> (首次出现的步数, 当时的结果)
     step = 0
     while step < max_steps:
         try:
@@ -55,9 +73,10 @@ def run_agent(question: str, llm, runner: ToolRunner, history: list[dict] | None
         if not calls:
             step += 1
             messages += [{"role": "assistant", "content": reply["content"] or ""},
-                         {"role": "user", "content": NO_TOOL_REMINDER}]
+                         {"role": "user", "content": f"{NO_TOOL_REMINDER}剩余步数：{max_steps - step}"}]
             if tracer:
-                tracer.add(step, None, {}, "", {"notice": "模型未调用工具，已提醒必须调用 finish"}, text=reply["content"])
+                tracer.add(step, None, {}, "", {"notice": "模型未调用工具，已提醒必须调用 finish",
+                                                "剩余步数": max_steps - step}, text=reply["content"])
             continue
 
         messages.append({"role": "assistant", "content": reply["content"],
@@ -77,6 +96,17 @@ def run_agent(question: str, llm, runner: ToolRunner, history: list[dict] | None
             else:
                 reason = str(args.pop("reason", ""))
                 observation, final = runner.call(call["name"], args)
+
+            observation = dict(observation)
+            signature = call["name"] + json.dumps(args, sort_keys=True, ensure_ascii=False)
+            if signature in seen:
+                first_step, first_obs = seen[signature]
+                same = "，结果未变" if first_obs == observation else ""
+                observation["重复调用"] = f"与第 {first_step} 步调用相同{same}"
+            else:
+                seen[signature] = (step, dict(observation))
+            observation["剩余步数"] = max_steps - step
+
             if tracer:
                 tracer.add(step, call["name"], args, reason, observation)
             messages.append({"role": "tool", "tool_call_id": call["id"],

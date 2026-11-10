@@ -84,7 +84,8 @@ def test_rejected_finish_counts_toward_steps(kb):
 def test_text_reply_is_reminded_and_counted(kb):
     result, llm = run(kb, MOCK_SCRIPTS["NO_TOOL_CALL"])
     assert result["status"] == "answered" and result["steps_used"] == 4  # 1 次纯文本 + 3 次工具
-    assert {"role": "user", "content": NO_TOOL_REMINDER} in llm.last_messages
+    # 提醒后附剩余步数（第 1 步用掉后剩 9 步）
+    assert {"role": "user", "content": NO_TOOL_REMINDER + "剩余步数：9"} in llm.last_messages
 
 
 def test_only_text_replies_reach_step_limit(kb):
@@ -257,9 +258,47 @@ def test_chat_ask_user_reads_input(kb):
     replies = iter(["差旅费"])
     runner = ToolRunner(kb, interactive=True, input_fn=lambda p: next(replies))
     run_agent("这个能报吗？", llm, runner, max_steps=1)
-    assert json.loads(llm.last_messages[-1]["content"]) == {"user_reply": "差旅费"}
+    assert json.loads(llm.last_messages[-1]["content"]) == {"user_reply": "差旅费", "剩余步数": 0}
 
 
 def test_cli_chat_rejects_mock():
     with pytest.raises(SystemExit):
         main(["--chat", "--mock"])
+
+
+# ---------- 循环防护：剩余步数与重复调用 ----------
+
+def test_observation_includes_remaining_steps(kb):
+    _, llm = run(kb, MOCK_SCRIPTS["C01"], max_steps=10)
+    assert [o["剩余步数"] for o in tool_observations(llm)] == [9, 8, 7]
+
+
+def test_duplicate_call_annotated_and_still_executed(kb):
+    script = [S("年假", "检索"), S("年假", "换个理由，参数相同"), S("年假 天数", "参数不同")]
+    _, llm = run(kb, script, max_steps=3)
+    obs = tool_observations(llm)
+    assert "重复调用" not in obs[0] and "重复调用" not in obs[2]
+    assert obs[1]["重复调用"] == "与第 1 步调用相同，结果未变"
+    assert obs[1]["results"] == obs[0]["results"]  # 照常执行
+
+
+def test_duplicate_call_with_changed_result_not_called_unchanged(kb):
+    # 故障注入第 1 次失败后恢复：参数相同但结果不同，只注明重复，不说"结果未变"
+    _, llm = run(kb, [S("年假", "检索"), S("年假", "重试")], max_steps=2, fail_tool="search_docs", fail_times=1)
+    obs = tool_observations(llm)
+    assert obs[1]["重复调用"] == "与第 1 步调用相同" and "results" in obs[1]
+
+
+def test_duplicate_read_doc_annotated_in_trace(kb):
+    from src.trace import Tracer
+    tracer = Tracer(source="mock", question="q")
+    script = [R("D03", "读"), R("D03", "再读一次")]
+    run_agent("q", ScriptedLLM(script), ToolRunner(kb), max_steps=2, tracer=tracer)
+    assert "与第 1 步调用相同，结果未变" in tracer.steps[1]["summary"]
+
+
+def test_prompt_contains_conflict_and_scope_rules():
+    from src.agent import SYSTEM_PROMPT
+    for phrase in ["范围分工", "已被替代", "真冲突", "版本日期更新不代表优先适用", "不得把互相矛盾的规定并列",
+                   "连续失败 2 次", "out_of_scope 时不提供文档以外的建议", "剩余步数"]:
+        assert phrase in SYSTEM_PROMPT, phrase

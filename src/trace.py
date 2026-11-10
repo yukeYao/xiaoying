@@ -8,6 +8,13 @@ from pathlib import Path
 
 
 def summarize(tool: str | None, obs: dict) -> str:
+    text = _summarize(tool, obs)
+    if obs.get("重复调用"):
+        text += f"（{obs['重复调用']}）"
+    return text
+
+
+def _summarize(tool: str | None, obs: dict) -> str:
     if tool is None:
         return obs.get("notice", "")
     if "error" in obs:

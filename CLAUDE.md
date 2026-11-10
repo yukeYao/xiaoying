@@ -8,6 +8,7 @@
 - docs/04-ai-usage.md 和 docs/05-retrospective.md 只生成模板，内容由我本人填写。
 - 代码保持简洁，避免过度工程化。
 - 提交时只 git add 明确要提交的文件，不使用 git add -A。
+- 写入含反引号或特殊字符的文本时，使用 Write 或 Edit 工具，不使用 shell heredoc。
 
 # 决策日志
 - 维护 docs/decision-log.md。每当我确认、否决或修改你的方案，或者我们在调试中发现并解决了问题，追加一条记录：
